@@ -1,0 +1,378 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+          args: --timeout=5m
+
+  fmt-check:
+    name: Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Check formatting
+        run: make fmt-check
+
+  test:
+    name: Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        go-version: ['1.21', '1.22']
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: make test
+
+      - name: Upload coverage
+        if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.22'
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/merged.out
+          flags: release
+          name: codecov-release
+
+  build:
+    name: Build Release Binaries
+    runs-on: ubuntu-latest
+    needs: [lint, fmt-check, test]
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Build examples
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          VERSION: ${{ steps.version.outputs.version }}
+          CGO_ENABLED: 0
+        run: |
+          mkdir -p dist
+          
+          # Set binary extension for Windows
+          EXT=""
+          if [ "$GOOS" = "windows" ]; then
+            EXT=".exe"
+          fi
+          
+          # Build flags
+          LDFLAGS="-s -w -X github.com/shiftleftcyber/securesbom-go/pkg/securesbom.Version=$VERSION \
+                   -X github.com/shiftleftcyber/securesbom-go/pkg/securesbom.Commit=${GITHUB_SHA::7} \
+                   -X github.com/shiftleftcyber/securesbom-go/pkg/securesbom.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          
+          # Build each example
+          echo "Building sign..."
+          go build -ldflags "$LDFLAGS" -o "dist/sign${EXT}" ./cmd/examples/sign/
+          
+          echo "Building verify..."
+          go build -ldflags "$LDFLAGS" -o "dist/verify${EXT}" ./cmd/examples/verify/
+          
+          echo "Building keymgmt..."
+          go build -ldflags "$LDFLAGS" -o "dist/keymgmt${EXT}" ./cmd/examples/keymgmt/
+
+      - name: Create release archives
+        run: |
+          cd dist
+          
+          VERSION=${{ steps.version.outputs.version }}
+          GOOS=${{ matrix.goos }}
+          GOARCH=${{ matrix.goarch }}
+          
+          # Create archive name
+          ARCHIVE_NAME="securesbom-examples-${VERSION}-${GOOS}-${GOARCH}"
+          
+          if [ "$GOOS" = "windows" ]; then
+            # Create zip for Windows
+            zip -r "${ARCHIVE_NAME}.zip" *
+          else
+            # Create tar.gz for Unix-like systems
+            tar czf "${ARCHIVE_NAME}.tar.gz" *
+          fi
+          
+          # Generate checksums
+          if [ "$GOOS" = "windows" ]; then
+            sha256sum "${ARCHIVE_NAME}.zip" > "${ARCHIVE_NAME}.zip.sha256"
+          else
+            sha256sum "${ARCHIVE_NAME}.tar.gz" > "${ARCHIVE_NAME}.tar.gz.sha256"
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            dist/*.tar.gz
+            dist/*.tar.gz.sha256
+            dist/*.zip
+            dist/*.zip.sha256
+          retention-days: 90
+
+  docs:
+    name: Build Release Documentation
+    runs-on: ubuntu-latest
+    needs: [lint, fmt-check, test]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Generate documentation
+        run: |
+          make docs
+          
+          # Generate package documentation
+          go doc -all ./pkg/securesbom > docs/pkg-documentation.txt
+          
+          # Add version to documentation
+          echo "Version: ${{ steps.version.outputs.version }}" > docs/VERSION.txt
+
+      - name: Create documentation archive
+        run: |
+          tar czf "securesbom-docs-${{ steps.version.outputs.version }}.tar.gz" docs/
+
+      - name: Upload documentation
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation
+          path: securesbom-docs-*.tar.gz
+          retention-days: 90
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build, docs]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-files
+          find release-artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.sha256" \) -exec cp {} release-files/ \;
+          ls -lah release-files/
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          
+          cat > release-notes.md << EOF
+          # SecureSBOM Go SDK ${VERSION}
+          
+          ## What's Changed
+          
+          This release includes the SecureSBOM Go SDK and example applications.
+          
+          ## Installation
+          
+          ### Go SDK
+          \`\`\`bash
+          go get github.com/shiftleftcyber/securesbom-go@${VERSION}
+          \`\`\`
+          
+          ### Example Binaries
+          
+          Download the appropriate binary for your platform from the assets below.
+          
+          **Linux (amd64)**:
+          \`\`\`bash
+          curl -LO https://github.com/shiftleftcyber/securesbom-go/releases/download/${VERSION}/securesbom-examples-${VERSION}-linux-amd64.tar.gz
+          tar xzf securesbom-examples-${VERSION}-linux-amd64.tar.gz
+          \`\`\`
+          
+          **macOS (Apple Silicon)**:
+          \`\`\`bash
+          curl -LO https://github.com/shiftleftcyber/securesbom-go/releases/download/${VERSION}/securesbom-examples-${VERSION}-darwin-arm64.tar.gz
+          tar xzf securesbom-examples-${VERSION}-darwin-arm64.tar.gz
+          \`\`\`
+          
+          **Windows (amd64)**:
+          Download the zip file and extract it.
+          
+          ## Checksums
+          
+          All release artifacts include SHA256 checksums for verification.
+          
+          ## Documentation
+          
+          - [API Documentation](https://pkg.go.dev/github.com/shiftleftcyber/securesbom-go)
+          - [Examples](https://github.com/shiftleftcyber/securesbom-go/tree/main/cmd/examples)
+          
+          ## Full Changelog
+          
+          https://github.com/shiftleftcyber/securesbom-go/compare/...${VERSION}
+          EOF
+          
+          cat release-notes.md
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release-files/*
+          body_path: release-notes.md
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, 'rc') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'alpha') }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-package:
+    name: Publish Go Package
+    runs-on: ubuntu-latest
+    needs: [create-release]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Verify module
+        run: |
+          go mod verify
+          go list -m github.com/shiftleftcyber/securesbom-go@${{ steps.version.outputs.version }}
+
+      - name: Publish to pkg.go.dev
+        run: |
+          # The package will be automatically indexed by pkg.go.dev
+          # Force indexing by making a request
+          curl "https://proxy.golang.org/github.com/shiftleftcyber/securesbom-go/@v/${{ steps.version.outputs.version }}.info"
+
+  notify:
+    name: Notify Release
+    runs-on: ubuntu-latest
+    needs: [create-release, publish-package]
+    if: success()
+    steps:
+      - name: Get version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Release summary
+        run: |
+          echo "## 🎉 Release ${{ steps.version.outputs.version }} Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All checks passed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Binaries built for all platforms" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Documentation generated" >> $GITHUB_STEP_SUMMARY
+          echo "✅ GitHub Release created" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Go package published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Release URL**: https://github.com/shiftleftcyber/securesbom-go/releases/tag/${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY

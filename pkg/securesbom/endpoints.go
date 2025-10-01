@@ -1,4 +1,4 @@
-// Copyright 2025 Interlynk.io and Contributors
+// Copyright 2025 ShiftLeftCyber Inc and Contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 //
