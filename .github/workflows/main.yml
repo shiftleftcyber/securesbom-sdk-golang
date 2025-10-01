@@ -121,7 +121,7 @@ jobs:
           fi
           
           # Build each example
-          LDFLAGS="-X github.com/shiftleftcyber/securesbom-go/pkg/securesbom.Version=$VERSION"
+          LDFLAGS="-X github.com/shiftleftcyber/securesbom-sdk-golang/pkg/securesbom.Version=$VERSION"
           
           go build -ldflags "$LDFLAGS" -o "dist/sign-${GOOS}-${GOARCH}${EXT}" ./cmd/examples/sign/
           go build -ldflags "$LDFLAGS" -o "dist/verify-${GOOS}-${GOARCH}${EXT}" ./cmd/examples/verify/
