@@ -134,9 +134,9 @@ jobs:
           fi
           
           # Build flags
-          LDFLAGS="-s -w -X github.com/shiftleftcyber/securesbom-go/pkg/securesbom.Version=$VERSION \
-                   -X github.com/shiftleftcyber/securesbom-go/pkg/securesbom.Commit=${GITHUB_SHA::7} \
-                   -X github.com/shiftleftcyber/securesbom-go/pkg/securesbom.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          LDFLAGS="-s -w -X github.com/shiftleftcyber/securesbom-sdk-golang/pkg/securesbom.Version=$VERSION \
+                   -X github.com/shiftleftcyber/securesbom-sdk-golang/pkg/securesbom.Commit=${GITHUB_SHA::7} \
+                   -X github.com/shiftleftcyber/securesbom-sdk-golang/pkg/securesbom.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           
           # Build each example
           echo "Building sign..."
@@ -271,7 +271,7 @@ jobs:
           
           ### Go SDK
           \`\`\`bash
-          go get github.com/shiftleftcyber/securesbom-go@${VERSION}
+          go get github.com/shiftleftcyber/securesbom-sdk-golang@${VERSION}
           \`\`\`
           
           ### Example Binaries
@@ -280,13 +280,13 @@ jobs:
           
           **Linux (amd64)**:
           \`\`\`bash
-          curl -LO https://github.com/shiftleftcyber/securesbom-go/releases/download/${VERSION}/securesbom-examples-${VERSION}-linux-amd64.tar.gz
+          curl -LO https://github.com/shiftleftcyber/securesbom-sdk-golang/releases/download/${VERSION}/securesbom-examples-${VERSION}-linux-amd64.tar.gz
           tar xzf securesbom-examples-${VERSION}-linux-amd64.tar.gz
           \`\`\`
           
           **macOS (Apple Silicon)**:
           \`\`\`bash
-          curl -LO https://github.com/shiftleftcyber/securesbom-go/releases/download/${VERSION}/securesbom-examples-${VERSION}-darwin-arm64.tar.gz
+          curl -LO https://github.com/shiftleftcyber/securesbom-sdk-golang/releases/download/${VERSION}/securesbom-examples-${VERSION}-darwin-arm64.tar.gz
           tar xzf securesbom-examples-${VERSION}-darwin-arm64.tar.gz
           \`\`\`
           
@@ -299,12 +299,12 @@ jobs:
           
           ## Documentation
           
-          - [API Documentation](https://pkg.go.dev/github.com/shiftleftcyber/securesbom-go)
-          - [Examples](https://github.com/shiftleftcyber/securesbom-go/tree/main/cmd/examples)
+          - [API Documentation](https://pkg.go.dev/github.com/shiftleftcyber/securesbom-sdk-golang)
+          - [Examples](https://github.com/shiftleftcyber/securesbom-sdk-golang/tree/main/cmd/examples)
           
           ## Full Changelog
           
-          https://github.com/shiftleftcyber/securesbom-go/compare/...${VERSION}
+          https://github.com/shiftleftcyber/securesbom-sdk-golang/compare/...${VERSION}
           EOF
           
           cat release-notes.md
@@ -345,13 +345,13 @@ jobs:
       - name: Verify module
         run: |
           go mod verify
-          go list -m github.com/shiftleftcyber/securesbom-go@${{ steps.version.outputs.version }}
+          go list -m github.com/shiftleftcyber/securesbom-sdk-golang@${{ steps.version.outputs.version }}
 
       - name: Publish to pkg.go.dev
         run: |
           # The package will be automatically indexed by pkg.go.dev
           # Force indexing by making a request
-          curl "https://proxy.golang.org/github.com/shiftleftcyber/securesbom-go/@v/${{ steps.version.outputs.version }}.info"
+          curl "https://proxy.golang.org/github.com/shiftleftcyber/securesbom-sdk-golang/@v/${{ steps.version.outputs.version }}.info"
 
   notify:
     name: Notify Release
@@ -375,4 +375,4 @@ jobs:
           echo "✅ GitHub Release created" >> $GITHUB_STEP_SUMMARY
           echo "✅ Go package published" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Release URL**: https://github.com/shiftleftcyber/securesbom-go/releases/tag/${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Release URL**: https://github.com/shiftleftcyber/securesbom-sdk-golang/releases/tag/${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
