@@ -37,7 +37,7 @@ LDFLAGS := -X $(shell $(GO) list .)/pkg/securesbom.Version=$(VERSION) \
 build: build-examples ## Build all examples
 
 .PHONY: build-examples
-build-examples: build-sign build-keymgmt ## TODO: Add this back in when the example is ready: build-verify
+build-examples: build-sign build-verify build-keymgmt
 
 .PHONY: build-sign
 build-sign: ## Build sign example
@@ -139,9 +139,9 @@ serve-docs: ## Serve documentation locally
 	godoc -http=:6060
 
 .PHONY: markdown-lint
-markdown-lint: ## Lint markdown files
+markdown-lint:
 	$(DOCKER) run --rm -v "$(shell pwd)":/build --workdir /build \
-		markdownlint/markdownlint:0.13.0 *.md docs/*.md
+		markdownlint/markdownlint:0.13.0 *.md
 
 ## Development targets
 

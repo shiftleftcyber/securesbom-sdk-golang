@@ -31,15 +31,15 @@ import (
 func main() {
 	// Command line flags
 	var (
-		keyID      = flag.String("key-id", "", "Key ID used to sign the SBOM (required)")
-		sbomPath   = flag.String("sbom", "", "Path to signed SBOM file (use '-' or omit for stdin)")
-		apiKey     = flag.String("api-key", "", "API key (or set SECURE_SBOM_API_KEY)")
-		baseURL    = flag.String("base-url", "", "API base URL (or set SECURE_SBOM_BASE_URL)")
-		output     = flag.String("output", "text", "Output format: text, json")
-		timeout    = flag.Duration("timeout", 30*time.Second, "Request timeout")
-		retries    = flag.Int("retries", 3, "Number of retry attempts")
-		quiet      = flag.Bool("quiet", false, "Suppress progress output (only show result)")
-		help       = flag.Bool("help", false, "Show usage information")
+		keyID    = flag.String("key-id", "", "Key ID used to sign the SBOM (required)")
+		sbomPath = flag.String("sbom", "", "Path to signed SBOM file (use '-' or omit for stdin)")
+		apiKey   = flag.String("api-key", "", "API key (or set SECURE_SBOM_API_KEY)")
+		baseURL  = flag.String("base-url", "", "API base URL (or set SECURE_SBOM_BASE_URL)")
+		output   = flag.String("output", "text", "Output format: text, json")
+		timeout  = flag.Duration("timeout", 30*time.Second, "Request timeout")
+		retries  = flag.Int("retries", 3, "Number of retry attempts")
+		quiet    = flag.Bool("quiet", false, "Suppress progress output (only show result)")
+		help     = flag.Bool("help", false, "Show usage information")
 	)
 	flag.Parse()
 
