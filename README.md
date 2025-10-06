@@ -7,14 +7,19 @@
 <!--
 [![codecov](https://codecov.io/gh/shiftleftcyber/securesbom-sdk-golang/branch/main/graph/badge.svg)](https://codecov.io/gh/shiftleftcyber/securesbom-sdk-golang)-->
 
-
-A Go SDK for cryptographically signing and verifying Software Bill of Materials (SBOM) documents using the ShiftLeftCyber SecureSBOM service.
+A Go SDK for cryptographically signing and verifying Software Bill of Materials
+(SBOM) documents using the ShiftLeftCyber SecureSBOM service.
 
 ## Features
 
-- **Sign SBOMs**: Cryptographically sign SBOM documents for authenticity and integrity
-- **Verify Signatures**: Validate signed SBOMs to ensure they haven't been tampered with
+- **Sign SBOMs**: Cryptographically sign SBOM documents for authenticity
+and integrity
+
+- **Verify Signatures**: Validate signed SBOMs to ensure they haven't
+been tampered with
+
 - **Key Management**: Generate, list, and retrieve signing keys
+
 - **Production Ready**: Comprehensive error handling and testing
 
 ## Installation
@@ -49,15 +54,15 @@ func main() {
         WithAPIKey("your-api-key").
         WithTimeout(30 * time.Second).
         FromEnv()
-    
+
     if signBaseURL != "" {
-		config = config.WithBaseURL(signBaseURL)
-	}
+        config = config.WithBaseURL(signBaseURL)
+    }
 
     baseClient, err := config.BuildClient()
-	if err != nil {
-		return nil, err
-	}
+    if err != nil {
+        return nil, err
+    }
 
     ctx := context.Background()
 
@@ -278,12 +283,12 @@ retryingClient := securesbom.WithRetryingClient(baseClient, retryConfig)
 type ClientInterface interface {
     // Health check
     HealthCheck(ctx context.Context) error
-    
+
     // Key management
     ListKeys(ctx context.Context) (*KeyListResponse, error)
     GenerateKey(ctx context.Context) (*GeneratedKey, error)
     GetPublicKey(ctx context.Context, keyID string) (string, error)
-    
+
     // SBOM operations
     SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResult, error)
     VerifySBOM(ctx context.Context, keyID string, signedSBOM interface{}) (*VerifyResult, error)
@@ -371,16 +376,17 @@ The project includes GitHub Actions workflows for:
 Contributions are welcome! Please:
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Run tests and linting (`make check`)
-5. Commit your changes (`git commit -m 'Add amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
+1. Create a feature branch (`git checkout -b feature/amazing-feature`)
+1. Make your changes
+1. Run tests and linting (`make check`)
+1. Commit your changes (`git commit -m 'Add amazing feature'`)
+1. Push to the branch (`git push origin feature/amazing-feature`)
+1. Open a Pull Request
 
 ## License
 
-This project is licensed under the Apache-2.0 License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache-2.0 License -
+see the [LICENSE](LICENSE) file for details.
 
 ## Support
 
@@ -390,4 +396,5 @@ This project is licensed under the Apache-2.0 License - see the [LICENSE](LICENS
 
 ## Acknowledgments
 
-Built by [ShiftLeftCyber](https://shiftleftcyber.io) for securing software supply chains.
+Built by [ShiftLeftCyber](https://shiftleftcyber.io) for securing
+software supply chains.
