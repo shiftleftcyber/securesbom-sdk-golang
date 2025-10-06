@@ -3,10 +3,12 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/shiftleftcyber/securesbom-sdk-golang)](https://go.dev/)
 [![License](https://img.shields.io/github/license/shiftleftcyber/securesbom-sdk-golang)](LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/shiftleftcyber/securesbom-sdk-golang)](https://goreportcard.com/report/github.com/shiftleftcyber/securesbom-sdk-golang)
-[![codecov](https://codecov.io/gh/shiftleftcyber/securesbom-sdk-golang/branch/main/graph/badge.svg)](https://codecov.io/gh/shiftleftcyber/securesbom-sdk-golang)
 [![GoDoc](https://pkg.go.dev/badge/github.com/shiftleftcyber/securesbom-sdk-golang)](https://pkg.go.dev/github.com/shiftleftcyber/securesbom-sdk-golang)
+<!--
+[![codecov](https://codecov.io/gh/shiftleftcyber/securesbom-sdk-golang/branch/main/graph/badge.svg)](https://codecov.io/gh/shiftleftcyber/securesbom-sdk-golang)-->
 
-A Go SDK for signing and verifying Software Bill of Materials (SBOM) documents using the ShiftLeftCyber SecureSBOM service.
+
+A Go SDK for cryptographically signing and verifying Software Bill of Materials (SBOM) documents using the ShiftLeftCyber SecureSBOM service.
 
 ## Features
 
@@ -18,7 +20,7 @@ A Go SDK for signing and verifying Software Bill of Materials (SBOM) documents u
 ## Installation
 
 ```bash
-go get github.com/shiftleftcyber/securesbom-go
+go get github.com/shiftleftcyber/securesbom-sdk-golang
 ```
 
 ## Quick Start
@@ -38,7 +40,7 @@ import (
     "log"
     "time"
 
-    "github.com/shiftleftcyber/securesbom-go/pkg/securesbom"
+    "github.com/shiftleftcyber/securesbom-sdk-golang/pkg/securesbom"
 )
 
 func main() {
