@@ -264,7 +264,7 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 }
 
 func (c *Client) ListKeys(ctx context.Context) (*KeyListResponse, error) {
-	resp, err := c.doRequest(ctx, "GET", API_VERSION+API_ENDPOINT_KEYS+"?showpub=false", nil)
+	resp, err := c.doRequest(ctx, "GET", API_VERSION+API_ENDPOINT_KEYS, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list keys: %w", err)
 	}
@@ -295,13 +295,13 @@ func (c *Client) ListKeys(ctx context.Context) (*KeyListResponse, error) {
 }
 
 func (c *Client) GenerateKey(ctx context.Context) (*GenerateKeyCMDResponse, error) {
-	resp, err := c.doRequest(ctx, HTTP_METHOD_POST, API_VERSION+API_ENDPOINT_KEYS+"?alg=ES256", nil)
+	resp, err := c.doRequest(ctx, HTTP_METHOD_POST, API_VERSION+API_ENDPOINT_KEYS, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate key: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != 201 {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
 	}
@@ -313,9 +313,9 @@ func (c *Client) GenerateKey(ctx context.Context) (*GenerateKeyCMDResponse, erro
 
 	return &GenerateKeyCMDResponse{
 		ID:        apiResp.KeyID,
+		CreatedAt: apiResp.CreatedAt,
 		PublicKey: apiResp.PublicKey,
-		CreatedAt: time.Now(),
-		Algorithm: "ES256",
+		Algorithm: apiResp.Algorithm,
 	}, nil
 }
 
@@ -354,7 +354,7 @@ func (c *Client) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (
 		return nil, fmt.Errorf("sbom is required")
 	}
 
-	endpoint := fmt.Sprintf(API_VERSION+API_ENDPOINT_SBOM+"/%s/sign?sigType=simple", keyID)
+	endpoint := fmt.Sprintf(API_VERSION+API_ENDPOINT_SBOM+"/sign")
 
 	sbomBytes, err := json.Marshal(sbom)
 	if err != nil {
@@ -371,6 +371,10 @@ func (c *Client) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (
 
 	if _, err := part.Write(sbomBytes); err != nil {
 		return nil, fmt.Errorf("failed to write SBOM data: %w", err)
+	}
+
+	if err := writer.WriteField("key_id", keyID); err != nil {
+		return nil, fmt.Errorf("failed to write key_id field: %w", err)
 	}
 
 	if err := writer.Close(); err != nil {
@@ -400,7 +404,7 @@ func (c *Client) VerifySBOM(ctx context.Context, keyID string, signedSBOM interf
 		return nil, fmt.Errorf("signedSBOM is required")
 	}
 
-	endpoint := fmt.Sprintf(API_VERSION+API_ENDPOINT_SBOM+"/%s/verify", keyID)
+	endpoint := fmt.Sprintf(API_VERSION+API_ENDPOINT_SBOM+"/verify")
 
 	signedSBOMBytes, err := json.Marshal(signedSBOM)
 	if err != nil {
@@ -410,13 +414,17 @@ func (c *Client) VerifySBOM(ctx context.Context, keyID string, signedSBOM interf
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 
-	part, err := writer.CreateFormFile("signedSBOM", "signed-sbom.json")
+	part, err := writer.CreateFormFile("sbom", "signed-sbom.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create form file: %w", err)
 	}
 
 	if _, err := part.Write(signedSBOMBytes); err != nil {
 		return nil, fmt.Errorf("failed to write signed SBOM data: %w", err)
+	}
+
+	if err := writer.WriteField("key_id", keyID); err != nil {
+		return nil, fmt.Errorf("failed to write key_id field: %w", err)
 	}
 
 	if err := writer.Close(); err != nil {

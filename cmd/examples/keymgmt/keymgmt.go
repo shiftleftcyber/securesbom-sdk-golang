@@ -263,7 +263,7 @@ func outputGeneratedKeyTable(key *securesbom.GenerateKeyCMDResponse) {
 		fmt.Printf("\nPublic Key:\n")
 		fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 		fmt.Print(key.PublicKey)
-		fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+		fmt.Printf("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 	}
 
 	fmt.Printf("\nYou can now use this key ID for signing:\n")

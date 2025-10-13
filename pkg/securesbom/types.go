@@ -54,7 +54,9 @@ type ListKeysAPIResponse struct {
 }
 
 type GenerateKeyAPIReponse struct {
-	KeyID     string `json:"key_id"`
+	KeyID     string `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	Algorithm string `json:"algorithm"`
 	PublicKey string `json:"public_key"`
 }
 
