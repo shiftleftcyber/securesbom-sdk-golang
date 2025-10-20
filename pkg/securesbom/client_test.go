@@ -461,7 +461,7 @@ func TestClient_ListKeys(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &MockHTTPClient{
 				DoFunc: func(req *http.Request) (*http.Response, error) {
-					expectedURL := "https://api.example.com/v0/keys?showpub=false"
+					expectedURL := "https://api.example.com/api/v1/keys"
 					if req.URL.String() != expectedURL {
 						t.Errorf("expected URL %q, got %q", expectedURL, req.URL.String())
 					}
@@ -519,9 +519,11 @@ func TestClient_GenerateKey(t *testing.T) {
 		{
 			name: "successful key generation",
 			// Mock the actual API response format (apiGenerateKeyResponse)
-			mockResponse: createMockResponse(200, map[string]interface{}{
-				"key_id":     "key-123",
+			mockResponse: createMockResponse(201, map[string]interface{}{
+				"id":     "key-123",
 				"public_key": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZI...\n-----END PUBLIC KEY-----",
+				"algorithm":  "ES256",
+				"created_at": time.Now().Format(time.RFC3339),
 			}),
 			expectError: false,
 		},
@@ -541,7 +543,7 @@ func TestClient_GenerateKey(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &MockHTTPClient{
 				DoFunc: func(req *http.Request) (*http.Response, error) {
-					expectedURL := "https://api.example.com/v0/keys?alg=ES256"
+					expectedURL := "https://api.example.com/api/v1/keys"
 					if req.URL.String() != expectedURL {
 						t.Errorf("expected URL %q, got %q", expectedURL, req.URL.String())
 					}
@@ -632,7 +634,7 @@ func TestClient_GetPublicKey(t *testing.T) {
 			mockClient := &MockHTTPClient{
 				DoFunc: func(req *http.Request) (*http.Response, error) {
 					if tt.keyID != "" {
-						expectedURL := fmt.Sprintf("https://api.example.com/v0/keys/%s/public.pem", tt.keyID)
+						expectedURL := fmt.Sprintf("https://api.example.com/api/v1/keys/public?key_id=%s", tt.keyID)
 						if req.URL.String() != expectedURL {
 							t.Errorf("expected URL %q, got %q", expectedURL, req.URL.String())
 						}
@@ -724,7 +726,7 @@ func TestClient_SignSBOM(t *testing.T) {
 			mockClient := &MockHTTPClient{
 				DoFunc: func(req *http.Request) (*http.Response, error) {
 					if tt.keyID != "" && tt.sbom != nil {
-						expectedURL := fmt.Sprintf("https://api.example.com/v0/sbom/%s/sign?sigType=simple", tt.keyID)
+						expectedURL := fmt.Sprintf("https://api.example.com/api/v1/sbom/sign")
 						if req.URL.String() != expectedURL {
 							t.Errorf("expected URL %q, got %q", expectedURL, req.URL.String())
 						}
@@ -827,7 +829,7 @@ func TestClient_VerifySBOM(t *testing.T) {
 			mockClient := &MockHTTPClient{
 				DoFunc: func(req *http.Request) (*http.Response, error) {
 					if tt.keyID != "" && tt.signedSBOM != nil {
-						expectedURL := fmt.Sprintf("https://api.example.com/v0/sbom/%s/verify", tt.keyID)
+						expectedURL := fmt.Sprintf("https://api.example.com/api/v1/sbom/verify")
 						if req.URL.String() != expectedURL {
 							t.Errorf("expected URL %q, got %q", expectedURL, req.URL.String())
 						}
