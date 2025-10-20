@@ -42,7 +42,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/shiftleftcyber/securesbom-sdk-golang/pkg/securesbom"
+	"github.com/shiftleftcyber/securesbom-sdk-golang/v2/pkg/securesbom"
 )
 
 func main() {

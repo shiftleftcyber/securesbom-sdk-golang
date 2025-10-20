@@ -49,7 +49,7 @@ import (
 
 const (
 	DefaultTimeout = 30 * time.Second
-	UserAgent      = "secure-sbom-sdk-go/1.0"
+	UserAgent      = "secure-sbom-sdk-go/2.0"
 )
 
 type Client struct {
