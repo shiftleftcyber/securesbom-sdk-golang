@@ -1,11 +1,11 @@
-package securesbom // import "github.com/shiftleftcyber/securesbom-sdk-golang/pkg/securesbom"
+package securesbom // import "github.com/shiftleftcyber/securesbom-sdk-golang/v2/pkg/securesbom"
 
 
 CONSTANTS
 
 const (
 	DefaultTimeout = 30 * time.Second
-	UserAgent      = "secure-sbom-sdk-go/1.0"
+	UserAgent      = "secure-sbom-sdk-go/2.0"
 )
 const (
 	API_VERSION              = "/api/v1"
