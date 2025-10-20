@@ -326,7 +326,7 @@ func (c *Client) GetPublicKey(ctx context.Context, keyID string) (string, error)
 		return "", fmt.Errorf("keyID is required")
 	}
 
-	endpoint := fmt.Sprintf(API_VERSION+API_ENDPOINT_KEYS+"/public?key_id="+keyID)
+	endpoint := fmt.Sprintf(API_VERSION + API_ENDPOINT_KEYS + "/public?key_id=" + keyID)
 	resp, err := c.doRequest(ctx, "GET", endpoint, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to get public key: %w", err)
@@ -355,7 +355,7 @@ func (c *Client) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (
 		return nil, fmt.Errorf("sbom is required")
 	}
 
-	endpoint := fmt.Sprintf(API_VERSION+API_ENDPOINT_SBOM+"/sign")
+	endpoint := fmt.Sprintf(API_VERSION + API_ENDPOINT_SBOM + "/sign")
 
 	sbomBytes, err := json.Marshal(sbom)
 	if err != nil {
@@ -405,7 +405,7 @@ func (c *Client) VerifySBOM(ctx context.Context, keyID string, signedSBOM interf
 		return nil, fmt.Errorf("signedSBOM is required")
 	}
 
-	endpoint := fmt.Sprintf(API_VERSION+API_ENDPOINT_SBOM+"/verify")
+	endpoint := fmt.Sprintf(API_VERSION + API_ENDPOINT_SBOM + "/verify")
 
 	signedSBOMBytes, err := json.Marshal(signedSBOM)
 	if err != nil {
