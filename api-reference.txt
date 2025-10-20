@@ -8,7 +8,7 @@ const (
 	UserAgent      = "secure-sbom-sdk-go/1.0"
 )
 const (
-	API_VERSION              = "/v0"
+	API_VERSION              = "/api/v1"
 	API_ENDPOINT_HEALTHCHECK = "/infra/healthcheck"
 	API_ENDPOINT_KEYS        = "/keys"
 	API_ENDPOINT_SBOM        = "/sbom"
@@ -115,8 +115,10 @@ func (b *ConfigBuilder) WithTimeout(timeout time.Duration) *ConfigBuilder
 func (b *ConfigBuilder) WithUserAgent(userAgent string) *ConfigBuilder
 
 type GenerateKeyAPIReponse struct {
-	KeyID     string `json:"key_id"`
-	PublicKey string `json:"public_key"`
+	KeyID     string    `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	Algorithm string    `json:"algorithm"`
+	PublicKey string    `json:"public_key"`
 }
 
 type GenerateKeyCMDResponse struct {
@@ -124,6 +126,7 @@ type GenerateKeyCMDResponse struct {
 	CreatedAt time.Time `json:"created_at"`
 	Algorithm string    `json:"algorithm"`
 	PublicKey string    `json:"public_key,omitempty"`
+	Backend   string    `json:"backend,omitempty"`
 }
 
 type HTTPClient interface {
@@ -138,6 +141,7 @@ type ListKeysAPIResponse struct {
 	ID        string    `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
 	Algorithm string    `json:"algorithm"`
+	Backend   string    `json:"backend"`
 }
 
 type RetryConfig struct {
