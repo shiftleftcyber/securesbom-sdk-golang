@@ -344,14 +344,20 @@ jobs:
 
       - name: Verify module
         run: |
+          go mod tidy
           go mod verify
-          go list -m github.com/shiftleftcyber/securesbom-sdk-golang@${{ steps.version.outputs.version }}
-
-      - name: Publish to pkg.go.dev
+    
+      - name: Trigger Go module reindex (non-blocking)
+        continue-on-error: true
         run: |
-          # The package will be automatically indexed by pkg.go.dev
-          # Force indexing by making a request
-          curl "https://proxy.golang.org/github.com/shiftleftcyber/securesbom-sdk-golang/@v/${{ steps.version.outputs.version }}.info"
+          VERSION=${{ steps.version.outputs.version }}
+          echo "Triggering reindex for github.com/shiftleftcyber/securesbom-sdk-golang@$VERSION"
+          curl -sSf "https://proxy.golang.org/github.com/shiftleftcyber/securesbom-sdk-golang/@v/$VERSION.info" \
+            || echo "Proxy may not have indexed this version yet, continuing..."
+
+      - name: Log reindex status
+        run: |
+          echo "Your module will appear shortly on pkg.go.dev after proxy reindexing."
 
   notify:
     name: Notify Release
