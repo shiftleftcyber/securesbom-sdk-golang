@@ -41,6 +41,7 @@ type GenerateKeyCMDResponse struct {
 	CreatedAt time.Time `json:"created_at"`
 	Algorithm string    `json:"algorithm"`
 	PublicKey string    `json:"public_key,omitempty"`
+	Backend   string    `json:"backend,omitempty"`
 }
 
 type KeyListResponse struct {
@@ -51,6 +52,7 @@ type ListKeysAPIResponse struct {
 	ID        string    `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
 	Algorithm string    `json:"algorithm"`
+	Backend   string    `json:"backend"`
 }
 
 type GenerateKeyAPIReponse struct {

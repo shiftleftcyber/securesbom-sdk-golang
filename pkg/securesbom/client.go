@@ -288,6 +288,7 @@ func (c *Client) ListKeys(ctx context.Context) (*KeyListResponse, error) {
 			ID:        apiKey.ID,
 			CreatedAt: apiKey.CreatedAt,
 			Algorithm: apiKey.Algorithm,
+			Backend:   apiKey.Backend,
 		}
 	}
 
@@ -325,7 +326,7 @@ func (c *Client) GetPublicKey(ctx context.Context, keyID string) (string, error)
 		return "", fmt.Errorf("keyID is required")
 	}
 
-	endpoint := fmt.Sprintf(API_VERSION+API_ENDPOINT_KEYS+"/%s/public.pem", keyID)
+	endpoint := fmt.Sprintf(API_VERSION+API_ENDPOINT_KEYS+"/public?key_id="+keyID)
 	resp, err := c.doRequest(ctx, "GET", endpoint, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to get public key: %w", err)
