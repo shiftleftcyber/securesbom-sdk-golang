@@ -49,6 +49,7 @@ func main() {
 	var (
 		keyID    = flag.String("key-id", "", "Key ID used to sign the SBOM (required)")
 		sbomPath = flag.String("sbom", "", "Path to signed SBOM file (use '-' or omit for stdin)")
+		signature = flag.String("signature", "", "signature to verify (used for SPDX)")
 		apiKey   = flag.String("api-key", "", "API key (or set SECURE_SBOM_API_KEY)")
 		baseURL  = flag.String("base-url", "", "API base URL (or set SECURE_SBOM_BASE_URL)")
 		output   = flag.String("output", "text", "Output format: text, json")
@@ -86,9 +87,9 @@ func main() {
 
 	// Load signed SBOM
 	if !*quiet {
-		fmt.Fprintf(os.Stderr, "Loading signed SBOM...\n")
+		fmt.Fprintf(os.Stderr, "Loading SBOM...\n")
 	}
-	signedSBOM, err := loadSignedSBOM(*sbomPath)
+	sbom, err := loadSignedSBOM(*sbomPath)
 	if err != nil {
 		log.Fatalf("Error loading signed SBOM: %v", err)
 	}
@@ -105,10 +106,23 @@ func main() {
 	if !*quiet {
 		fmt.Fprintf(os.Stderr, "Verifying SBOM signature with key %s...\n", *keyID)
 	}
-	result, err := client.VerifySBOM(ctx, *keyID, signedSBOM.Data())
-	if err != nil {
-		log.Fatalf("Error verifying SBOM: %v", err)
+	
+	var result *securesbom.VerifyResultCMDResponse
+	if signature == nil {
+		// CycloneDX SBOM
+		log.Print("Verifying CycloneDX SBOM")
+		result, err = client.VerifySBOM(ctx, *keyID, sbom.Data())
+		if err != nil {
+			log.Fatalf("Error verifying SBOM: %v", err)
+		}
+	} else {
+		log.Print("Verifying SPDX SBOM")
+		result, err = client.VerifySPDXSBOM(ctx, *keyID, *signature, sbom.Data())
+		if err != nil {
+			log.Fatalf("Error verifying SBOM: %v", err)
+		}
 	}
+	
 
 	// Output verification result
 	if err := outputVerificationResult(result, *output); err != nil {

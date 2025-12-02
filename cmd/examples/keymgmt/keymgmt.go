@@ -233,8 +233,8 @@ func outputKeysTable(result *securesbom.KeyListResponse) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 	defer w.Flush()
 
-	fmt.Fprintf(w, "KEY ID\tCREATED\tALGORITHM\tBACKEND\n")
-	fmt.Fprintf(w, "------\t-------\t---------\t---------\n")
+	fmt.Fprintf(w, "KEY ID\tCREATED\tALGORITHM\tBACKEND\tPROTECTION LEVEL\tPURPOSE\n")
+	fmt.Fprintf(w, "------\t-------\t---------\t---------\t---------\t---------\n")
 
 	for _, key := range result.Keys {
 		createdAt := key.CreatedAt.Format("2006-01-02 15:04")
@@ -242,7 +242,8 @@ func outputKeysTable(result *securesbom.KeyListResponse) {
 		if algorithm == "" {
 			algorithm = "default"
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", key.ID, createdAt, algorithm, key.Backend)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", key.ID, createdAt, algorithm, key.Backend, key.ProtectionLevel,
+			key.Purpose)
 	}
 
 	if len(result.Keys) == 0 {
@@ -265,6 +266,11 @@ func outputGeneratedKeyTable(key *securesbom.GenerateKeyCMDResponse) {
 		fmt.Print(key.PublicKey)
 		fmt.Printf("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 	}
+
+	fmt.Printf("Backend: %s\n", key.Backend)
+	fmt.Printf("Protection Level: %s\n", key.ProtectionLevel)
+	fmt.Printf("Purpose: %s\n", key.Purpose)
+
 
 	fmt.Printf("\nYou can now use this key ID for signing:\n")
 	fmt.Printf("  sign -key-id %s -sbom your-sbom.json\n", key.ID)
