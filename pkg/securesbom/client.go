@@ -286,13 +286,13 @@ func (c *Client) ListKeys(ctx context.Context) (*KeyListResponse, error) {
 	keys := make([]GenerateKeyCMDResponse, len(apiKeys))
 	for i, apiKey := range apiKeys {
 		keys[i] = GenerateKeyCMDResponse{
-			ID:        apiKey.ID,
-			CreatedAt: apiKey.CreatedAt,
-			Algorithm: apiKey.Algorithm,
-			Backend:   apiKey.Backend,
-			KMSPath:   apiKey.KMSPath,
+			ID:              apiKey.ID,
+			CreatedAt:       apiKey.CreatedAt,
+			Algorithm:       apiKey.Algorithm,
+			Backend:         apiKey.Backend,
+			KMSPath:         apiKey.KMSPath,
 			ProtectionLevel: apiKey.ProtectionLevel,
-			Purpose: apiKey.Purpose,
+			Purpose:         apiKey.Purpose,
 		}
 	}
 
@@ -317,13 +317,13 @@ func (c *Client) GenerateKey(ctx context.Context) (*GenerateKeyCMDResponse, erro
 	}
 
 	return &GenerateKeyCMDResponse{
-		ID:        apiResp.KeyID,
-		CreatedAt: apiResp.CreatedAt,
-		PublicKey: apiResp.PublicKey,
-		Algorithm: apiResp.Algorithm,
-		Backend: apiResp.Backend,
+		ID:              apiResp.KeyID,
+		CreatedAt:       apiResp.CreatedAt,
+		PublicKey:       apiResp.PublicKey,
+		Algorithm:       apiResp.Algorithm,
+		Backend:         apiResp.Backend,
 		ProtectionLevel: apiResp.ProtectionLevel,
-		Purpose: apiResp.Purpose,
+		Purpose:         apiResp.Purpose,
 	}, nil
 }
 
@@ -510,7 +510,7 @@ func (c *Client) VerifySPDXSBOM(ctx context.Context, keyID string, signature str
 	if signedSBOM == nil {
 		return nil, fmt.Errorf("signedSBOM is required")
 	}
-	if signature == nil {
+	if signature == "" {
 		return nil, fmt.Errorf("signature is required for SPDX")
 	}
 
@@ -535,6 +535,10 @@ func (c *Client) VerifySPDXSBOM(ctx context.Context, keyID string, signature str
 
 	if err := writer.WriteField("key_id", keyID); err != nil {
 		return nil, fmt.Errorf("failed to write key_id field: %w", err)
+	}
+
+	if err := writer.WriteField("signature", signature); err != nil {
+		return nil, fmt.Errorf("failed to write signature field: %w", err)
 	}
 
 	if err := writer.Close(); err != nil {

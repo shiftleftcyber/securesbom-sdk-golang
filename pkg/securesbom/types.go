@@ -37,14 +37,14 @@ type HTTPClient interface {
 // SecureSBOM Keys
 
 type GenerateKeyCMDResponse struct {
-	ID        		string    	`json:"id"`
-	CreatedAt 		time.Time 	`json:"created_at"`
-	Algorithm 		string    	`json:"algorithm"`
-	PublicKey 		string    	`json:"public_key,omitempty"`
-	Backend   		string    	`json:"backend,omitempty"`
-	KMSPath	  		string		`json:"kms_path,omitempty"`
-	ProtectionLevel string 		`json:"protection_level,omitempty"`
-	Purpose 		string 		`json:"purpose,omitempty"`
+	ID              string    `json:"id"`
+	CreatedAt       time.Time `json:"created_at"`
+	Algorithm       string    `json:"algorithm"`
+	PublicKey       string    `json:"public_key,omitempty"`
+	Backend         string    `json:"backend,omitempty"`
+	KMSPath         string    `json:"kms_path,omitempty"`
+	ProtectionLevel string    `json:"protection_level,omitempty"`
+	Purpose         string    `json:"purpose,omitempty"`
 }
 
 type KeyListResponse struct {
@@ -52,24 +52,24 @@ type KeyListResponse struct {
 }
 
 type ListKeysAPIResponse struct {
-	ID        		string    	`json:"id"`
-	CreatedAt 		time.Time 	`json:"created_at"`
-	Algorithm 		string    	`json:"algorithm"`
-	Backend   		string    	`json:"backend"`
-	KMSPath	  		string		`json:"kms_path,omitempty"`
-	ProtectionLevel string 		`json:"protection_level,omitempty"`
-	Purpose 		string 		`json:"purpose,omitempty"`
+	ID              string    `json:"id"`
+	CreatedAt       time.Time `json:"created_at"`
+	Algorithm       string    `json:"algorithm"`
+	Backend         string    `json:"backend"`
+	KMSPath         string    `json:"kms_path,omitempty"`
+	ProtectionLevel string    `json:"protection_level,omitempty"`
+	Purpose         string    `json:"purpose,omitempty"`
 }
 
 type GenerateKeyAPIReponse struct {
-	KeyID     		string    	`json:"id"`
-	CreatedAt 		time.Time 	`json:"created_at"`
-	Algorithm 		string    	`json:"algorithm"`
-	PublicKey 		string    	`json:"public_key"`
-	Backend   		string    	`json:"backend"`
-	KMSPath	  		string		`json:"kms_path,omitempty"`
-	ProtectionLevel string 		`json:"protection_level,omitempty"`
-	Purpose 		string 		`json:"purpose,omitempty"`
+	KeyID           string    `json:"id"`
+	CreatedAt       time.Time `json:"created_at"`
+	Algorithm       string    `json:"algorithm"`
+	PublicKey       string    `json:"public_key"`
+	Backend         string    `json:"backend"`
+	KMSPath         string    `json:"kms_path,omitempty"`
+	ProtectionLevel string    `json:"protection_level,omitempty"`
+	Purpose         string    `json:"purpose,omitempty"`
 }
 
 // Signing

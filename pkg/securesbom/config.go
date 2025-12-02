@@ -268,3 +268,13 @@ func (r *RetryingClient) VerifySBOM(ctx context.Context, keyID string, signedSBO
 	})
 	return result, err
 }
+
+func (r *RetryingClient) VerifySPDXSBOM(ctx context.Context, keyID string, signature string, signedSBOM interface{}) (*VerifyResultCMDResponse, error) {
+	var result *VerifyResultCMDResponse
+	err := WithRetry(ctx, r.retryConfig, func() error {
+		var err error
+		result, err = r.client.VerifySPDXSBOM(ctx, keyID, signature, signedSBOM)
+		return err
+	})
+	return result, err
+}

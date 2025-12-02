@@ -271,7 +271,6 @@ func outputGeneratedKeyTable(key *securesbom.GenerateKeyCMDResponse) {
 	fmt.Printf("Protection Level: %s\n", key.ProtectionLevel)
 	fmt.Printf("Purpose: %s\n", key.Purpose)
 
-
 	fmt.Printf("\nYou can now use this key ID for signing:\n")
 	fmt.Printf("  sign -key-id %s -sbom your-sbom.json\n", key.ID)
 }
