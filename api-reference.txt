@@ -72,6 +72,9 @@ func (c *Client) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (
 func (c *Client) VerifySBOM(ctx context.Context, keyID string, signedSBOM interface{}) (*VerifyResultCMDResponse, error)
     VerifySBOM verifies a signed SBOM using the specified key
 
+func (c *Client) VerifySPDXSBOM(ctx context.Context, keyID string, signature string, signedSBOM interface{}) (*VerifyResultCMDResponse, error)
+    VerifySBOM verifies a signed SBOM using the specified key
+
 type ClientInterface interface {
 	HealthCheck(ctx context.Context) error
 	ListKeys(ctx context.Context) (*KeyListResponse, error)
@@ -79,6 +82,7 @@ type ClientInterface interface {
 	GetPublicKey(ctx context.Context, keyID string) (string, error)
 	SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponse, error)
 	VerifySBOM(ctx context.Context, keyID string, signedSBOM interface{}) (*VerifyResultCMDResponse, error)
+	VerifySPDXSBOM(ctx context.Context, keyID string, signature string, signedSBOM interface{}) (*VerifyResultCMDResponse, error)
 }
 
 type ClientOption func(*Config)
@@ -115,18 +119,25 @@ func (b *ConfigBuilder) WithTimeout(timeout time.Duration) *ConfigBuilder
 func (b *ConfigBuilder) WithUserAgent(userAgent string) *ConfigBuilder
 
 type GenerateKeyAPIReponse struct {
-	KeyID     string    `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	Algorithm string    `json:"algorithm"`
-	PublicKey string    `json:"public_key"`
+	KeyID           string    `json:"id"`
+	CreatedAt       time.Time `json:"created_at"`
+	Algorithm       string    `json:"algorithm"`
+	PublicKey       string    `json:"public_key"`
+	Backend         string    `json:"backend"`
+	KMSPath         string    `json:"kms_path,omitempty"`
+	ProtectionLevel string    `json:"protection_level,omitempty"`
+	Purpose         string    `json:"purpose,omitempty"`
 }
 
 type GenerateKeyCMDResponse struct {
-	ID        string    `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	Algorithm string    `json:"algorithm"`
-	PublicKey string    `json:"public_key,omitempty"`
-	Backend   string    `json:"backend,omitempty"`
+	ID              string    `json:"id"`
+	CreatedAt       time.Time `json:"created_at"`
+	Algorithm       string    `json:"algorithm"`
+	PublicKey       string    `json:"public_key,omitempty"`
+	Backend         string    `json:"backend,omitempty"`
+	KMSPath         string    `json:"kms_path,omitempty"`
+	ProtectionLevel string    `json:"protection_level,omitempty"`
+	Purpose         string    `json:"purpose,omitempty"`
 }
 
 type HTTPClient interface {
@@ -138,10 +149,13 @@ type KeyListResponse struct {
 }
 
 type ListKeysAPIResponse struct {
-	ID        string    `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	Algorithm string    `json:"algorithm"`
-	Backend   string    `json:"backend"`
+	ID              string    `json:"id"`
+	CreatedAt       time.Time `json:"created_at"`
+	Algorithm       string    `json:"algorithm"`
+	Backend         string    `json:"backend"`
+	KMSPath         string    `json:"kms_path,omitempty"`
+	ProtectionLevel string    `json:"protection_level,omitempty"`
+	Purpose         string    `json:"purpose,omitempty"`
 }
 
 type RetryConfig struct {
@@ -170,6 +184,8 @@ func (r *RetryingClient) ListKeys(ctx context.Context) (*KeyListResponse, error)
 func (r *RetryingClient) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponse, error)
 
 func (r *RetryingClient) VerifySBOM(ctx context.Context, keyID string, signedSBOM interface{}) (*VerifyResultCMDResponse, error)
+
+func (r *RetryingClient) VerifySPDXSBOM(ctx context.Context, keyID string, signature string, signedSBOM interface{}) (*VerifyResultCMDResponse, error)
 
 type SBOM struct {
 	// Has unexported fields.
