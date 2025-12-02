@@ -64,6 +64,7 @@ type ClientInterface interface {
 	GetPublicKey(ctx context.Context, keyID string) (string, error)
 	SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponse, error)
 	VerifySBOM(ctx context.Context, keyID string, signedSBOM interface{}) (*VerifyResultCMDResponse, error)
+	VerifySPDXSBOM(ctx context.Context, keyID string, signature string, signedSBOM interface{}) (*VerifyResultCMDResponse, error)
 }
 
 func (e *APIError) Error() string {
@@ -285,10 +286,13 @@ func (c *Client) ListKeys(ctx context.Context) (*KeyListResponse, error) {
 	keys := make([]GenerateKeyCMDResponse, len(apiKeys))
 	for i, apiKey := range apiKeys {
 		keys[i] = GenerateKeyCMDResponse{
-			ID:        apiKey.ID,
-			CreatedAt: apiKey.CreatedAt,
-			Algorithm: apiKey.Algorithm,
-			Backend:   apiKey.Backend,
+			ID:              apiKey.ID,
+			CreatedAt:       apiKey.CreatedAt,
+			Algorithm:       apiKey.Algorithm,
+			Backend:         apiKey.Backend,
+			KMSPath:         apiKey.KMSPath,
+			ProtectionLevel: apiKey.ProtectionLevel,
+			Purpose:         apiKey.Purpose,
 		}
 	}
 
@@ -313,10 +317,13 @@ func (c *Client) GenerateKey(ctx context.Context) (*GenerateKeyCMDResponse, erro
 	}
 
 	return &GenerateKeyCMDResponse{
-		ID:        apiResp.KeyID,
-		CreatedAt: apiResp.CreatedAt,
-		PublicKey: apiResp.PublicKey,
-		Algorithm: apiResp.Algorithm,
+		ID:              apiResp.KeyID,
+		CreatedAt:       apiResp.CreatedAt,
+		PublicKey:       apiResp.PublicKey,
+		Algorithm:       apiResp.Algorithm,
+		Backend:         apiResp.Backend,
+		ProtectionLevel: apiResp.ProtectionLevel,
+		Purpose:         apiResp.Purpose,
 	}, nil
 }
 
@@ -426,6 +433,112 @@ func (c *Client) VerifySBOM(ctx context.Context, keyID string, signedSBOM interf
 
 	if err := writer.WriteField("key_id", keyID); err != nil {
 		return nil, fmt.Errorf("failed to write key_id field: %w", err)
+	}
+
+	if err := writer.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close form writer: %w", err)
+	}
+
+	resp, err := c.doMultipartRequest(ctx, "POST", endpoint, &buf, writer.FormDataContentType())
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify SBOM: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	switch resp.StatusCode {
+	case 200:
+		// Success case - signature is valid
+		var apiResp VerifyResultAPIResponse
+		if err := json.Unmarshal(bodyBytes, &apiResp); err != nil {
+			return nil, fmt.Errorf("failed to decode success response: %w", err)
+		}
+
+		return &VerifyResultCMDResponse{
+			Valid:     true,
+			Message:   apiResp.Message,
+			KeyID:     apiResp.KeyID,
+			Algorithm: apiResp.Algorithm,
+			Timestamp: time.Now(),
+		}, nil
+
+	case 500:
+		// Error case - signature verification failed
+		// First try to parse as structured error response
+		var apiErr APIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &apiErr); err != nil {
+			// If JSON parsing fails, treat the response as plain text
+			errorMsg := strings.TrimSpace(string(bodyBytes))
+			if errorMsg == "" {
+				errorMsg = "signature verification failed"
+			}
+			return &VerifyResultCMDResponse{
+				Valid:     false,
+				Message:   errorMsg,
+				Timestamp: time.Now(),
+			}, nil
+		}
+
+		errorMessage := apiErr.Message
+		if errorMessage == "" {
+			errorMessage = apiErr.Error
+		}
+		if errorMessage == "" {
+			errorMessage = "signature verification failed"
+		}
+
+		return &VerifyResultCMDResponse{
+			Valid:     false,
+			Message:   errorMessage,
+			Timestamp: time.Now(),
+		}, nil
+
+	default:
+		return nil, fmt.Errorf("unexpected response status %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+}
+
+// VerifySBOM verifies a signed SBOM using the specified key
+func (c *Client) VerifySPDXSBOM(ctx context.Context, keyID string, signature string, signedSBOM interface{}) (*VerifyResultCMDResponse, error) {
+	if keyID == "" {
+		return nil, fmt.Errorf("keyID is required")
+	}
+	if signedSBOM == nil {
+		return nil, fmt.Errorf("signedSBOM is required")
+	}
+	if signature == "" {
+		return nil, fmt.Errorf("signature is required for SPDX")
+	}
+
+	endpoint := fmt.Sprintf(API_VERSION + API_ENDPOINT_SBOM + "/verify")
+
+	signedSBOMBytes, err := json.Marshal(signedSBOM)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal signed SBOM: %w", err)
+	}
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+
+	part, err := writer.CreateFormFile("sbom", "signed-sbom.json")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create form file: %w", err)
+	}
+
+	if _, err := part.Write(signedSBOMBytes); err != nil {
+		return nil, fmt.Errorf("failed to write signed SBOM data: %w", err)
+	}
+
+	if err := writer.WriteField("key_id", keyID); err != nil {
+		return nil, fmt.Errorf("failed to write key_id field: %w", err)
+	}
+
+	if err := writer.WriteField("signature", signature); err != nil {
+		return nil, fmt.Errorf("failed to write signature field: %w", err)
 	}
 
 	if err := writer.Close(); err != nil {

@@ -47,15 +47,16 @@ import (
 func main() {
 	// Command line flags
 	var (
-		keyID    = flag.String("key-id", "", "Key ID used to sign the SBOM (required)")
-		sbomPath = flag.String("sbom", "", "Path to signed SBOM file (use '-' or omit for stdin)")
-		apiKey   = flag.String("api-key", "", "API key (or set SECURE_SBOM_API_KEY)")
-		baseURL  = flag.String("base-url", "", "API base URL (or set SECURE_SBOM_BASE_URL)")
-		output   = flag.String("output", "text", "Output format: text, json")
-		timeout  = flag.Duration("timeout", 30*time.Second, "Request timeout")
-		retries  = flag.Int("retries", 3, "Number of retry attempts")
-		quiet    = flag.Bool("quiet", false, "Suppress progress output (only show result)")
-		help     = flag.Bool("help", false, "Show usage information")
+		keyID     = flag.String("key-id", "", "Key ID used to sign the SBOM (required)")
+		sbomPath  = flag.String("sbom", "", "Path to signed SBOM file (use '-' or omit for stdin)")
+		signature = flag.String("signature", "", "signature to verify (used for SPDX)")
+		apiKey    = flag.String("api-key", "", "API key (or set SECURE_SBOM_API_KEY)")
+		baseURL   = flag.String("base-url", "", "API base URL (or set SECURE_SBOM_BASE_URL)")
+		output    = flag.String("output", "text", "Output format: text, json")
+		timeout   = flag.Duration("timeout", 30*time.Second, "Request timeout")
+		retries   = flag.Int("retries", 3, "Number of retry attempts")
+		quiet     = flag.Bool("quiet", false, "Suppress progress output (only show result)")
+		help      = flag.Bool("help", false, "Show usage information")
 	)
 	flag.Parse()
 
@@ -86,9 +87,9 @@ func main() {
 
 	// Load signed SBOM
 	if !*quiet {
-		fmt.Fprintf(os.Stderr, "Loading signed SBOM...\n")
+		fmt.Fprintf(os.Stderr, "Loading SBOM...\n")
 	}
-	signedSBOM, err := loadSignedSBOM(*sbomPath)
+	sbom, err := loadSignedSBOM(*sbomPath)
 	if err != nil {
 		log.Fatalf("Error loading signed SBOM: %v", err)
 	}
@@ -105,9 +106,26 @@ func main() {
 	if !*quiet {
 		fmt.Fprintf(os.Stderr, "Verifying SBOM signature with key %s...\n", *keyID)
 	}
-	result, err := client.VerifySBOM(ctx, *keyID, signedSBOM.Data())
-	if err != nil {
-		log.Fatalf("Error verifying SBOM: %v", err)
+
+	var result *securesbom.VerifyResultCMDResponse
+	if *signature != "" {
+		// SPDX SBOM - requires separate signature
+		if !*quiet {
+			log.Print("Verifying SPDX SBOM")
+		}
+		result, err = client.VerifySPDXSBOM(ctx, *keyID, *signature, sbom.Data())
+		if err != nil {
+			log.Fatalf("Error verifying SPDX SBOM: %v", err)
+		}
+	} else {
+		// CycloneDX SBOM - signature embedded in SBOM
+		if !*quiet {
+			log.Print("Verifying CycloneDX SBOM")
+		}
+		result, err = client.VerifySBOM(ctx, *keyID, sbom.Data())
+		if err != nil {
+			log.Fatalf("Error verifying CycloneDX SBOM: %v", err)
+		}
 	}
 
 	// Output verification result
@@ -246,6 +264,7 @@ REQUIRED:
 
 OPTIONS:
   -sbom string      Path to signed SBOM file (default: stdin)
+  -signature string Signature to verify (required for SPDX SBOMs)
   -output string    Output format: text, json (default: text)
   -api-key string   API key (or set SECURE_SBOM_API_KEY)
   -base-url string  API base URL (or set SECURE_SBOM_BASE_URL)
@@ -259,8 +278,11 @@ EXIT CODES:
   1  Signature is invalid or verification failed
 
 EXAMPLES:
-  # Verify signed SBOM from file
+  # Verify signed CycloneDX SBOM from file (signature embedded)
   %s -key-id my-key-123 -sbom signed-sbom.json
+
+  # Verify SPDX SBOM with separate signature
+  %s -key-id my-key-123 -sbom sbom.spdx.json -signature "base64signature..."
 
   # Verify from stdin with text output
   cat signed-sbom.json | %s -key-id my-key-123
@@ -285,8 +307,12 @@ ENVIRONMENT VARIABLES:
   SECURE_SBOM_API_KEY    Your SecureSBOM API key
   SECURE_SBOM_BASE_URL   Custom API endpoint URL
 
+SBOM FORMATS:
+  - CycloneDX: Signature is embedded in the SBOM (no -signature flag needed)
+  - SPDX: Signature must be provided separately via -signature flag
+
 API KEY:
   You can obtain an API key from: https://shiftleftcyber.io/contactus
 
-`, os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0])
+`, os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0])
 }
