@@ -1,0 +1,234 @@
+name: SBOM Generation, Signing, & Vulnerability Scanning
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+
+jobs:
+  setup:
+    name: Determin Project Names
+    runs-on: ubuntu-latest
+    outputs:
+      interlynk_environment: ${{ steps.setvar.outputs.interlynk_environment }}
+      sanitized_branch_name: ${{ steps.setbranch.outputs.sanitized_branch_name }}
+
+    steps:
+        - name: Set Interlynk Project Name
+          id: setvar
+          run: |
+            if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+              echo "setting interlynk_environment to: Production"
+              echo "interlynk_environment=Production" >> $GITHUB_OUTPUT
+            else
+              echo "setting interlynk_environment to: Development"
+              echo "interlynk_environment=Development" >> $GITHUB_OUTPUT
+            fi
+
+            echo "Final interlynk_environment value:"
+            cat "$GITHUB_OUTPUT"
+        
+        - name: Set Santized Branch Name
+          id: setbranch
+          run: |
+            echo "DEBUG INFO"
+            echo "GITHUB_REF=${GITHUB_REF}"
+            echo "GITHUB_REF_NAME=${GITHUB_REF_NAME}"
+
+            if [[ "${GITHUB_REF}" == refs/tags/v* ]] || [[ "${GITHUB_REF_NAME}" == "main" ]]; then
+              echo "Matched release or main branch condition"
+              echo "sanitized_branch_name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            else
+              CLEAN_NAME="${GITHUB_REF_NAME//\//-}"
+              echo "Using sanitized branch name: ${CLEAN_NAME}"
+              echo "sanitized_branch_name=${CLEAN_NAME}" >> "$GITHUB_OUTPUT"
+            fi
+
+            echo "Final sanitized_branch_name value:"
+            cat "$GITHUB_OUTPUT"
+
+  generate_sbom:
+    name: 🔏 Generate SBOM
+    needs: setup
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Generate SBOM (CycloneDX)
+        uses: CycloneDX/gh-gomod-generate-sbom@v2
+        with:
+          version: v1
+          args: mod -licenses -json -output-version 1.6 -output securesbom-sdk-golang.${{ needs.setup.outputs.sanitized_branch_name }}.cdx.json
+        env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+      - name: Upload SBOM Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-sbom
+          path: securesbom-sdk-golang.${{ needs.setup.outputs.sanitized_branch_name }}.cdx.json
+          retention-days: 7
+
+      - name: Add Job Summary
+        run: |
+          echo "### 🔏 SBOM Lifecycle Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ SBOM generated" >> $GITHUB_STEP_SUMMARY
+          echo "- 📄 Artifacts uploaded for transparency" >> $GITHUB_STEP_SUMMARY
+  
+  sign-sbom:
+    name: Sign SBOM via SecureSBOM
+    needs: [setup, generate_sbom]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Download Signed SBOM
+        uses: actions/download-artifact@v4
+        with:
+          name: unsigned-sbom
+          path: .
+    
+      - name: Sign SBOM via SecureSBOM
+        uses: shiftleftcyber/secure-sbom-action@v1.3.1
+        with:
+          sbom_file: securesbom-sdk-golang.${{ needs.setup.outputs.sanitized_branch_name }}.cdx.json
+          secure_sbom_action: sign
+          api_key: ${{ secrets.SECURE_SBOM_API_KEY }}
+          key_id: ${{ secrets.SECURE_SBOM_KEYID }}
+      
+      - name: Verify SBOM via SecureSBOM
+        uses: shiftleftcyber/secure-sbom-action@v1.3.1
+        with:
+            sbom_file: securesbom-sdk-golang.${{ needs.setup.outputs.sanitized_branch_name }}.cdx.signed.json
+            secure_sbom_action: verify
+            api_key: ${{ secrets.SECURE_SBOM_API_KEY }}
+            key_id: ${{ secrets.SECURE_SBOM_KEYID }}
+
+      - name: Upload Signed SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-sbom
+          path: securesbom-sdk-golang.${{ needs.setup.outputs.sanitized_branch_name }}.cdx.signed.json
+          retention-days: 7
+
+  osv-scan:
+    name: 🔎 OSV Scan
+    needs: [setup, sign-sbom]
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Download Signed SBOM
+        uses: actions/download-artifact@v4
+        with:
+          name: signed-sbom
+          path: .
+
+      - name: Run OSV Scanner
+        run: |
+          SAFE_REF="${{ needs.setup.outputs.sanitized_branch_name }}"
+          SAFE_REF="${SAFE_REF//\//-}"
+          # osv-scanner does not like when an sbom is named with "signed" - change filename into something
+          # it can understand
+          cp securesbom-sdk-golang.${SAFE_REF}.cdx.signed.json bom.json
+          docker run --rm -v ${{ github.workspace }}:/opt --workdir /opt ghcr.io/google/osv-scanner:latest \
+            scan --lockfile bom.json \
+            --format json --output osv-scan-report.json || true
+
+      - name: Upload OSV Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: osv-scan-report
+          path: osv-scan-report.json
+    
+      - name: Enforce Security Gate
+        id: enforce-gate
+        run: |
+          echo "🔍 Evaluating OSV scan results..."
+          COUNT=$(jq '[.results[] | select(.severity == "HIGH" or .severity == "CRITICAL")] | length' osv-scan-report.json)
+          if [ "$COUNT" -gt 0 ]; then
+            echo "❌ Blocking release - $COUNT high/critical vulnerabilities detected!"
+            jq '.results[] | select(.severity == "HIGH" or .severity == "CRITICAL") | {package: .package.name, severity: .severity, summary: .summary}' osv-scan-report.json
+            echo "blocked=true" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "✅ No blocking vulnerabilities found."
+            echo "blocked=false" >> $GITHUB_OUTPUT
+          fi
+    
+      - name: Add Job Summary
+        if: always()
+        run: |
+          echo "### 🔒 OSV Vulnerability Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Scan file:** \`osv-scan-report.json\`" >> $GITHUB_STEP_SUMMARY
+          if [[ '${{ steps.enforce-gate.outputs.blocked }}' == 'true' ]]; then
+            echo "- ❌ **High/Critical vulnerabilities found — release blocked**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ✅ **No blocking vulnerabilities detected — safe to proceed**" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "For full report, download the [osv-scan-report artifact](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+
+  upload-sbom:
+    name: Upload SBOM to Interlynk
+    needs: [setup, sign-sbom]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Download Signed SBOM
+        uses: actions/download-artifact@v4
+        with:
+          name: signed-sbom
+          path: .
+    
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+     
+      - name: Clone Interlynk pylynk
+        run: git clone https://github.com/interlynk-io/pylynk.git
+    
+      - name: Install pylynk dependencies
+        run: |
+          cd pylynk
+          pip install -r requirements.txt
+          
+      - name: Upload SBOM to Interlynk
+        env:
+          INTERLYNK_SECURITY_TOKEN: ${{ secrets.INTERLYNK_TOKEN }}
+          INTERLYNK_ENVIRONMENT: ${{ needs.setup.outputs.interlynk_environment }}
+          SANITIZED_BRANCH_NAME: ${{ needs.setup.outputs.sanitized_branch_name }}
+        run: |
+          cd pylynk
+          echo "🚀 Uploading SBOM to Interlynk project: securesbom-sdk-golang - environment: ${INTERLYNK_ENVIRONMENT}"
+          python3 pylynk.py upload \
+            --prod "securesbom-sdk-golang" \
+            --env "${INTERLYNK_ENVIRONMENT}" \
+            --sbom "../securesbom-sdk-golang.${SANITIZED_BRANCH_NAME}.cdx.signed.json"
+
+      - name: Add Job Summary
+        if: always()
+        run: |
+          echo "### 📤 SBOM Upload to Interlynk" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ SBOM uploaded successfully to Interlynk" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔗 Project: \`securesbom-sdk-golang\`" >> $GITHUB_STEP_SUMMARY
+          echo "- File: \`securesbom-sdk-golang.${{ needs.setup.outputs.sanitized_branch_name }}.cdx.signed.json\`" >> $GITHUB_STEP_SUMMARY
