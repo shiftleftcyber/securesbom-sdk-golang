@@ -162,7 +162,7 @@ jobs:
         id: enforce-gate
         run: |
           echo "🔍 Evaluating OSV scan results..."
-          COUNT=$(jq '[.results[] | select(.severity == "HIGH" or .severity == "CRITICAL")] | length' osv-scan-report.json)
+          COUNT=$(jq '[.results[] | select(.severity == "HIGH" or .severity == "CRITICAL")] | length' osv-scan-report.json) || true
           if [ "$COUNT" -gt 0 ]; then
             echo "❌ Blocking release - $COUNT high/critical vulnerabilities detected!"
             jq '.results[] | select(.severity == "HIGH" or .severity == "CRITICAL") | {package: .package.name, severity: .severity, summary: .summary}' osv-scan-report.json
