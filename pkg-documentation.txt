@@ -6,6 +6,8 @@ CONSTANTS
 const (
 	DefaultTimeout = 30 * time.Second
 	UserAgent      = "secure-sbom-sdk-go/2.0"
+	KeyBackendFile = "file"
+	KeyBackendKMS  = "gcp-kms"
 )
 const (
 	API_VERSION              = "/api/v1"
@@ -60,6 +62,8 @@ func NewClient(config *Config) (*Client, error)
 
 func (c *Client) GenerateKey(ctx context.Context) (*GenerateKeyCMDResponse, error)
 
+func (c *Client) GenerateKeyWithBackend(ctx context.Context, backend string) (*GenerateKeyCMDResponse, error)
+
 func (c *Client) GetPublicKey(ctx context.Context, keyID string) (string, error)
     GetPublicKey retrieves the public key for a specific key ID
 
@@ -68,6 +72,8 @@ func (c *Client) HealthCheck(ctx context.Context) error
 func (c *Client) ListKeys(ctx context.Context) (*KeyListResponse, error)
 
 func (c *Client) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponse, error)
+
+func (c *Client) SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponse, error)
 
 func (c *Client) VerifySBOM(ctx context.Context, keyID string, signedSBOM interface{}) (*VerifyResultCMDResponse, error)
     VerifySBOM verifies a signed SBOM using the specified key
@@ -79,8 +85,10 @@ type ClientInterface interface {
 	HealthCheck(ctx context.Context) error
 	ListKeys(ctx context.Context) (*KeyListResponse, error)
 	GenerateKey(ctx context.Context) (*GenerateKeyCMDResponse, error)
+	GenerateKeyWithBackend(ctx context.Context, backend string) (*GenerateKeyCMDResponse, error)
 	GetPublicKey(ctx context.Context, keyID string) (string, error)
 	SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponse, error)
+	SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponse, error)
 	VerifySBOM(ctx context.Context, keyID string, signedSBOM interface{}) (*VerifyResultCMDResponse, error)
 	VerifySPDXSBOM(ctx context.Context, keyID string, signature string, signedSBOM interface{}) (*VerifyResultCMDResponse, error)
 }
@@ -175,6 +183,8 @@ func WithRetryingClient(client *Client, retryConfig RetryConfig) *RetryingClient
 
 func (r *RetryingClient) GenerateKey(ctx context.Context) (*GenerateKeyCMDResponse, error)
 
+func (r *RetryingClient) GenerateKeyWithBackend(ctx context.Context, backend string) (*GenerateKeyCMDResponse, error)
+
 func (r *RetryingClient) GetPublicKey(ctx context.Context, keyID string) (string, error)
 
 func (r *RetryingClient) HealthCheck(ctx context.Context) error
@@ -182,6 +192,8 @@ func (r *RetryingClient) HealthCheck(ctx context.Context) error
 func (r *RetryingClient) ListKeys(ctx context.Context) (*KeyListResponse, error)
 
 func (r *RetryingClient) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponse, error)
+
+func (r *RetryingClient) SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponse, error)
 
 func (r *RetryingClient) VerifySBOM(ctx context.Context, keyID string, signedSBOM interface{}) (*VerifyResultCMDResponse, error)
 
@@ -204,6 +216,11 @@ func (s *SBOM) String() string
 func (s *SBOM) WriteToFile(filePath string) error
 
 func (s *SBOM) WriteToWriter(writer io.Writer) error
+
+type SignOptions struct {
+	Detached bool
+	Pretty   bool
+}
 
 type SignResultAPIResponse map[string]interface{}
     intentenoly do not define a type for a sign result since we need to support
