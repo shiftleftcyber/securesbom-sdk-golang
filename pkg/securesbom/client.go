@@ -50,8 +50,8 @@ import (
 const (
 	DefaultTimeout = 30 * time.Second
 	UserAgent      = "secure-sbom-sdk-go/2.0"
-	KeyBackendFile  = "file"
-	KeyBackendKMS   = "gcp-kms"
+	KeyBackendFile = "file"
+	KeyBackendKMS  = "gcp-kms"
 )
 
 type Client struct {
@@ -66,6 +66,7 @@ type ClientInterface interface {
 	GenerateKeyWithBackend(ctx context.Context, backend string) (*GenerateKeyCMDResponse, error)
 	GetPublicKey(ctx context.Context, keyID string) (string, error)
 	SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponse, error)
+	SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponse, error)
 	VerifySBOM(ctx context.Context, keyID string, signedSBOM interface{}) (*VerifyResultCMDResponse, error)
 	VerifySPDXSBOM(ctx context.Context, keyID string, signature string, signedSBOM interface{}) (*VerifyResultCMDResponse, error)
 }
@@ -375,6 +376,15 @@ func (c *Client) GetPublicKey(ctx context.Context, keyID string) (string, error)
 }
 
 func (c *Client) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponse, error) {
+	// Default behavior: embedded signature, no extras
+	return c.signSBOM(ctx, keyID, sbom, SignOptions{})
+}
+
+func (c *Client) SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponse, error) {
+	return c.signSBOM(ctx, keyID, sbom, opts)
+}
+
+func (c *Client) signSBOM(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponse, error) {
 	if keyID == "" {
 		return nil, fmt.Errorf("keyID is required")
 	}
@@ -382,8 +392,22 @@ func (c *Client) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (
 		return nil, fmt.Errorf("sbom is required")
 	}
 
-	endpoint := fmt.Sprintf(API_VERSION + API_ENDPOINT_SBOM + "/sign")
+	// Base endpoint
+	endpoint := API_VERSION + API_ENDPOINT_SBOM + "/sign"
 
+	// Add query params for options
+	q := url.Values{}
+	if opts.Detached {
+		q.Set("detached", "true")
+	}
+	if opts.Pretty {
+		q.Set("pretty", "true")
+	}
+	if qs := q.Encode(); qs != "" {
+		endpoint = endpoint + "?" + qs
+	}
+
+	// Prepare multipart body
 	sbomBytes, err := json.Marshal(sbom)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal SBOM: %w", err)
@@ -409,7 +433,7 @@ func (c *Client) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (
 		return nil, fmt.Errorf("failed to close form writer: %w", err)
 	}
 
-	resp, err := c.doMultipartRequest(ctx, "POST", endpoint, &buf, writer.FormDataContentType())
+	resp, err := c.doMultipartRequest(ctx, http.MethodPost, endpoint, &buf, writer.FormDataContentType())
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign SBOM: %w", err)
 	}

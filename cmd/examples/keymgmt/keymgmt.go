@@ -151,7 +151,7 @@ func runGenerateCommand(args []string) {
 	if !*quiet {
 		fmt.Fprintf(os.Stderr, "Using backend: %q\n", backend)
 	}
-	
+
 	var key *securesbom.GenerateKeyCMDResponse
 
 	key, err = client.GenerateKeyWithBackend(ctx, backend)
@@ -322,6 +322,7 @@ LIST OPTIONS:
 
 GENERATE OPTIONS:
   -output string      Output format: table, json (default: table)
+  -filesystemKey      Generate filesystem-backed key (NOT FOR PRODUCTION USE)
   -save-public string Save public key to file
   -api-key string     API key (or set SECURE_SBOM_API_KEY)
   -base-url string    API base URL (or set SECURE_SBOM_BASE_URL)

@@ -96,3 +96,8 @@ type VerifyResultAPIResponse struct {
 type generateKeyRequest struct {
 	Backend string `json:"backend,omitempty"`
 }
+
+type SignOptions struct {
+	Detached bool
+	Pretty   bool
+}

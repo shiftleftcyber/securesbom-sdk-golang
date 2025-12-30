@@ -55,6 +55,8 @@ func main() {
 		timeout    = flag.Duration("timeout", 30*time.Second, "Request timeout")
 		retries    = flag.Int("retries", 3, "Number of retry attempts")
 		quiet      = flag.Bool("quiet", false, "Suppress progress output")
+		detached   = flag.Bool("detached", false, "Return detached signature instead of embedding it in the SBOM")
+		pretty     = flag.Bool("pretty", false, "Pretty-print JSON output (where supported)")
 		help       = flag.Bool("help", false, "Show usage information")
 	)
 	flag.Parse()
@@ -100,7 +102,13 @@ func main() {
 	if !*quiet {
 		fmt.Fprintf(os.Stderr, "Signing SBOM with key %s...\n", *keyID)
 	}
-	result, err := client.SignSBOM(ctx, *keyID, sbom.Data())
+
+	opts := securesbom.SignOptions{
+		Detached: *detached,
+		Pretty:   *pretty,
+	}
+
+	result, err := client.SignSBOMWithOptions(ctx, *keyID, sbom.Data(), opts)
 	if err != nil {
 		log.Fatalf("Error signing SBOM: %v", err)
 	}
@@ -170,7 +178,7 @@ func loadSBOM(path string) (*securesbom.SBOM, error) {
 // outputSignedSBOM writes the signed SBOM to the specified output
 func outputSignedSBOM(result *securesbom.SignResultAPIResponse, outputPath string) error {
 	// Pretty-print the JSON
-	jsonData, err := json.MarshalIndent(result, "", "  ")
+	jsonData, err := json.Marshal(result)
 	if err != nil {
 		return fmt.Errorf("failed to marshal signed SBOM: %w", err)
 	}
@@ -201,9 +209,11 @@ USAGE:
 
 REQUIRED:
   -key-id string    Key ID to use for signing
+  -sbom string      Path to SBOM file (default: stdin)
 
 OPTIONS:
-  -sbom string      Path to SBOM file (default: stdin)
+  -detached bool    Return a detached signature - leave the orgional SBOM intac
+  -pretty   bool    Pretty Print the response
   -output string    Output file path (default: stdout)
   -api-key string   API key (or set SECURE_SBOM_API_KEY)
   -base-url string  API base URL (or set SECURE_SBOM_BASE_URL)
