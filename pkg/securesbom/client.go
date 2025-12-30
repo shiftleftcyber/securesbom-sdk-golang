@@ -50,6 +50,8 @@ import (
 const (
 	DefaultTimeout = 30 * time.Second
 	UserAgent      = "secure-sbom-sdk-go/2.0"
+	KeyBackendFile  = "file"
+	KeyBackendKMS   = "gcp-kms"
 )
 
 type Client struct {
@@ -61,6 +63,7 @@ type ClientInterface interface {
 	HealthCheck(ctx context.Context) error
 	ListKeys(ctx context.Context) (*KeyListResponse, error)
 	GenerateKey(ctx context.Context) (*GenerateKeyCMDResponse, error)
+	GenerateKeyWithBackend(ctx context.Context, backend string) (*GenerateKeyCMDResponse, error)
 	GetPublicKey(ctx context.Context, keyID string) (string, error)
 	SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponse, error)
 	VerifySBOM(ctx context.Context, keyID string, signedSBOM interface{}) (*VerifyResultCMDResponse, error)
@@ -300,15 +303,32 @@ func (c *Client) ListKeys(ctx context.Context) (*KeyListResponse, error) {
 }
 
 func (c *Client) GenerateKey(ctx context.Context) (*GenerateKeyCMDResponse, error) {
-	resp, err := c.doRequest(ctx, HTTP_METHOD_POST, API_VERSION+API_ENDPOINT_KEYS, nil)
+	// Default behavior: no backend specified → server uses default (HSM/KMS)
+	return c.generateKey(ctx, "")
+}
+
+func (c *Client) GenerateKeyWithBackend(ctx context.Context, backend string) (*GenerateKeyCMDResponse, error) {
+	return c.generateKey(ctx, backend)
+}
+
+func (c *Client) generateKey(ctx context.Context, backend string) (*GenerateKeyCMDResponse, error) {
+	var body interface{}
+
+	if backend != "" {
+		body = generateKeyRequest{Backend: backend}
+	} else {
+		body = nil
+	}
+
+	resp, err := c.doRequest(ctx, HTTP_METHOD_POST, API_VERSION+API_ENDPOINT_KEYS, body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate key: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 201 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
+	if resp.StatusCode != http.StatusCreated {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var apiResp GenerateKeyAPIReponse

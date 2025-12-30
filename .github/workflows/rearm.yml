@@ -96,7 +96,7 @@ jobs:
       - name: TEMP - add REARM_BUILD_LIFECYCLE
         shell: bash
         run: |
-          echo "REARM_BUILD_LIFECYCLE=ASSEMBLED" >> $GITHUB_ENV        
+          echo "REARM_BUILD_LIFECYCLE=ASSEMBLED" >> $GITHUB_ENV
 
       - name: Submit metadata to ReARM and Finalize
         uses: relizaio/rearm-actions/finalize@main

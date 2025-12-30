@@ -92,3 +92,7 @@ type VerifyResultAPIResponse struct {
 	KeyID     string `json:"key_id"`
 	Algorithm string `json:"algorithm"`
 }
+
+type generateKeyRequest struct {
+	Backend string `json:"backend,omitempty"`
+}
