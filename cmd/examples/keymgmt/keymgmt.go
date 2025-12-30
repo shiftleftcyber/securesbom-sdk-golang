@@ -120,6 +120,7 @@ func runGenerateCommand(args []string) {
 	savePublic := fs.String("save-public", "", "Save public key to file")
 	timeout := fs.Duration("timeout", 30*time.Second, "Request timeout")
 	quiet := fs.Bool("quiet", false, "Suppress progress output")
+	filesystemKey := fs.Bool("filesystemKey", false, "Generate filesystem-backed key (NOT FOR PRODUCTION USE)")
 	fs.Parse(args)
 
 	// Validate output format
@@ -136,12 +137,25 @@ func runGenerateCommand(args []string) {
 	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 	defer cancel()
 
-	// Generate key
 	if !*quiet {
 		fmt.Fprintf(os.Stderr, "Generating new signing key...\n")
 	}
 
-	key, err := client.GenerateKey(ctx)
+	var backend string
+	if *filesystemKey {
+		backend = securesbom.KeyBackendFile
+	} else {
+		backend = securesbom.KeyBackendKMS
+	}
+
+	if !*quiet {
+		fmt.Fprintf(os.Stderr, "Using backend: %q\n", backend)
+	}
+
+	var key *securesbom.GenerateKeyCMDResponse
+
+	key, err = client.GenerateKeyWithBackend(ctx, backend)
+
 	if err != nil {
 		log.Fatalf("Error generating key: %v", err)
 	}
@@ -308,6 +322,7 @@ LIST OPTIONS:
 
 GENERATE OPTIONS:
   -output string      Output format: table, json (default: table)
+  -filesystemKey      Generate filesystem-backed key (NOT FOR PRODUCTION USE)
   -save-public string Save public key to file
   -api-key string     API key (or set SECURE_SBOM_API_KEY)
   -base-url string    API base URL (or set SECURE_SBOM_BASE_URL)

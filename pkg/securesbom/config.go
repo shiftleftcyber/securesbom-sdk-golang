@@ -239,6 +239,16 @@ func (r *RetryingClient) GenerateKey(ctx context.Context) (*GenerateKeyCMDRespon
 	return result, err
 }
 
+func (r *RetryingClient) GenerateKeyWithBackend(ctx context.Context, backend string) (*GenerateKeyCMDResponse, error) {
+	var result *GenerateKeyCMDResponse
+	err := WithRetry(ctx, r.retryConfig, func() error {
+		var err error
+		result, err = r.client.GenerateKeyWithBackend(ctx, backend)
+		return err
+	})
+	return result, err
+}
+
 func (r *RetryingClient) GetPublicKey(ctx context.Context, keyID string) (string, error) {
 	var result string
 	err := WithRetry(ctx, r.retryConfig, func() error {
@@ -254,6 +264,16 @@ func (r *RetryingClient) SignSBOM(ctx context.Context, keyID string, sbom interf
 	err := WithRetry(ctx, r.retryConfig, func() error {
 		var err error
 		result, err = r.client.SignSBOM(ctx, keyID, sbom)
+		return err
+	})
+	return result, err
+}
+
+func (r *RetryingClient) SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponse, error) {
+	var result *SignResultAPIResponse
+	err := WithRetry(ctx, r.retryConfig, func() error {
+		var err error
+		result, err = r.client.SignSBOMWithOptions(ctx, keyID, sbom, opts)
 		return err
 	})
 	return result, err
