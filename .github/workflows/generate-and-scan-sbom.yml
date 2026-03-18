@@ -103,7 +103,7 @@ jobs:
         uses: shiftleftcyber/secure-sbom-action@v2.2.0
         with:
           sbom_file: securesbom-sdk-golang.${{ needs.setup.outputs.sanitized_branch_name }}.cdx.json
-          secure_sbom_action: sign_bom
+          secure_sbom_action: sign_sbom
           secure_sbom_api_key: ${{ secrets.SECURE_SBOM_API_KEY }}
           secure_sbom_signing_key_id: ${{ vars.SECURE_SBOM_SIGNING_KEY_ID }}
       
