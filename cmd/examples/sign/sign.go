@@ -176,7 +176,7 @@ func loadSBOM(path string) (*securesbom.SBOM, error) {
 }
 
 // outputSignedSBOM writes the signed SBOM to the specified output
-func outputSignedSBOM(result *securesbom.SignResultAPIResponse, outputPath string) error {
+func outputSignedSBOM(result *securesbom.SignResultAPIResponseV2, outputPath string) error {
 	// Pretty-print the JSON
 	jsonData, err := json.Marshal(result)
 	if err != nil {

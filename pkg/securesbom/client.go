@@ -65,8 +65,8 @@ type ClientInterface interface {
 	GenerateKey(ctx context.Context) (*GenerateKeyCMDResponse, error)
 	GenerateKeyWithBackend(ctx context.Context, backend string) (*GenerateKeyCMDResponse, error)
 	GetPublicKey(ctx context.Context, keyID string) (string, error)
-	SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponse, error)
-	SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponse, error)
+	SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponseV2, error)
+	SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponseV2, error)
 	VerifySBOM(ctx context.Context, keyID string, signedSBOM interface{}) (*VerifyResultCMDResponse, error)
 	VerifySPDXSBOM(ctx context.Context, keyID string, signature string, signedSBOM interface{}) (*VerifyResultCMDResponse, error)
 }
@@ -375,16 +375,16 @@ func (c *Client) GetPublicKey(ctx context.Context, keyID string) (string, error)
 	return string(body), nil
 }
 
-func (c *Client) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponse, error) {
+func (c *Client) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponseV2, error) {
 	// Default behavior: embedded signature, no extras
 	return c.signSBOM(ctx, keyID, sbom, SignOptions{})
 }
 
-func (c *Client) SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponse, error) {
+func (c *Client) SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponseV2, error) {
 	return c.signSBOM(ctx, keyID, sbom, opts)
 }
 
-func (c *Client) signSBOM(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponse, error) {
+func (c *Client) signSBOM(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponseV2, error) {
 	if keyID == "" {
 		return nil, fmt.Errorf("keyID is required")
 	}
@@ -392,58 +392,34 @@ func (c *Client) signSBOM(ctx context.Context, keyID string, sbom interface{}, o
 		return nil, fmt.Errorf("sbom is required")
 	}
 
-	// Base endpoint
-	endpoint := API_VERSION + API_ENDPOINT_SBOM + "/sign"
+	endpoint := API_VERSION_V2 + API_ENDPOINT_SBOM + "/sign"
 
-	// Add query params for options
-	q := url.Values{}
-	if opts.Detached {
-		q.Set("detached", "true")
-	}
-	if opts.Pretty {
-		q.Set("pretty", "true")
-	}
-	if qs := q.Encode(); qs != "" {
-		endpoint = endpoint + "?" + qs
-	}
-
-	// Prepare multipart body
-	sbomBytes, err := json.Marshal(sbom)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal SBOM: %w", err)
+	reqBody := struct {
+		KeyID    string      `json:"key_id"`
+		SBOM     interface{} `json:"sbom"`
+		Pretty   bool        `json:"pretty,omitempty"`
+		Detached bool        `json:"detached,omitempty"`
+	}{
+		KeyID:    keyID,
+		SBOM:     sbom,
+		Pretty:   opts.Pretty,
+		Detached: opts.Detached,
 	}
 
-	var buf bytes.Buffer
-	writer := multipart.NewWriter(&buf)
-
-	part, err := writer.CreateFormFile("sbom", "sbom.json")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create form file: %w", err)
-	}
-
-	if _, err := part.Write(sbomBytes); err != nil {
-		return nil, fmt.Errorf("failed to write SBOM data: %w", err)
-	}
-
-	if err := writer.WriteField("key_id", keyID); err != nil {
-		return nil, fmt.Errorf("failed to write key_id field: %w", err)
-	}
-
-	if err := writer.Close(); err != nil {
-		return nil, fmt.Errorf("failed to close form writer: %w", err)
-	}
-
-	resp, err := c.doMultipartRequest(ctx, http.MethodPost, endpoint, &buf, writer.FormDataContentType())
+	resp, err := c.doRequest(ctx, http.MethodPost, endpoint, reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign SBOM: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
-	var result SignResultAPIResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
+	var result SignResultAPIResponseV2
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode sign response: %w", err)
 	}
-
+	
 	return &result, nil
 }
 

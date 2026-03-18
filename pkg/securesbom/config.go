@@ -259,8 +259,8 @@ func (r *RetryingClient) GetPublicKey(ctx context.Context, keyID string) (string
 	return result, err
 }
 
-func (r *RetryingClient) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponse, error) {
-	var result *SignResultAPIResponse
+func (r *RetryingClient) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponseV2, error) {
+	var result *SignResultAPIResponseV2
 	err := WithRetry(ctx, r.retryConfig, func() error {
 		var err error
 		result, err = r.client.SignSBOM(ctx, keyID, sbom)
@@ -269,8 +269,8 @@ func (r *RetryingClient) SignSBOM(ctx context.Context, keyID string, sbom interf
 	return result, err
 }
 
-func (r *RetryingClient) SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponse, error) {
-	var result *SignResultAPIResponse
+func (r *RetryingClient) SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponseV2, error) {
+	var result *SignResultAPIResponseV2
 	err := WithRetry(ctx, r.retryConfig, func() error {
 		var err error
 		result, err = r.client.SignSBOMWithOptions(ctx, keyID, sbom, opts)

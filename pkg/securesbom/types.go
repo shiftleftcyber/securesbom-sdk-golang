@@ -17,6 +17,7 @@
 package securesbom
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 )
@@ -76,6 +77,13 @@ type GenerateKeyAPIReponse struct {
 
 // intentenoly do not define a type for a sign result since we need to support many different types of sboms/reponses
 type SignResultAPIResponse map[string]interface{}
+
+type SignResultAPIResponseV2 struct {
+	SignedSBOM 	json.RawMessage 	`json:"signed_sbom"`
+	Algorithm  	string      		`json:"algorithm"`
+	Detached   	bool        		`json:"detached"`
+	SBOMType   	string 				`json:"sbom_type"`
+}
 
 // verification
 
