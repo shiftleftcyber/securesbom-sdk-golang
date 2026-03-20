@@ -107,25 +107,19 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Verifying SBOM signature with key %s...\n", *keyID)
 	}
 
+	cliVerifyReq := securesbom.VerifyCMDRequest{
+		KeyID: *keyID,
+		SBOM:  sbom.Data(),
+	}
+
+	if signature != nil {
+		cliVerifyReq.SignatureB64 = *signature
+	}
+
 	var result *securesbom.VerifyResultCMDResponse
-	if *signature != "" {
-		// SPDX SBOM - requires separate signature
-		if !*quiet {
-			log.Print("Verifying SPDX SBOM")
-		}
-		result, err = client.VerifySPDXSBOM(ctx, *keyID, *signature, sbom.Data())
-		if err != nil {
-			log.Fatalf("Error verifying SPDX SBOM: %v", err)
-		}
-	} else {
-		// CycloneDX SBOM - signature embedded in SBOM
-		if !*quiet {
-			log.Print("Verifying CycloneDX SBOM")
-		}
-		result, err = client.VerifySBOM(ctx, *keyID, sbom.Data())
-		if err != nil {
-			log.Fatalf("Error verifying CycloneDX SBOM: %v", err)
-		}
+	result, err = client.VerifySBOM(ctx, cliVerifyReq)
+	if err != nil {
+		log.Fatalf("Error verifying SBOM: %v", err)
 	}
 
 	// Output verification result

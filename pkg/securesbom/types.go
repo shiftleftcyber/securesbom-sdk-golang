@@ -75,30 +75,41 @@ type GenerateKeyAPIReponse struct {
 
 // Signing
 
-// intentenoly do not define a type for a sign result since we need to support many different types of sboms/reponses
-type SignResultAPIResponse map[string]interface{}
-
 type SignResultAPIResponseV2 struct {
-	SignedSBOM 	json.RawMessage 	`json:"signed_sbom"`
-	Algorithm  	string      		`json:"algorithm"`
-	Detached   	bool        		`json:"detached"`
-	SBOMType   	string 				`json:"sbom_type"`
+	SignedSBOM   json.RawMessage `json:"signed_sbom,omitempty"`
+	Algorithm    string          `json:"algorithm"`
+	Detached     bool            `json:"detached"`
+	SBOMType     string          `json:"sbom_type,omitempty"`
+	Signature    string          `json:"signature,omitempty"`
+	SignatureB64 string          `json:"signature_b64,omitempty"`
 }
 
 // verification
 
 type VerifyResultCMDResponse struct {
 	Valid     bool      `json:"valid"`
+	Code      string    `json:"code"`
 	Message   string    `json:"message,omitempty"`
 	KeyID     string    `json:"key_id,omitempty"`
 	Algorithm string    `json:"algorithm,omitempty"`
 	Timestamp time.Time `json:"timestamp,omitempty"`
 }
 
-type VerifyResultAPIResponse struct {
-	Message   string `json:"message"`
-	KeyID     string `json:"key_id"`
-	Algorithm string `json:"algorithm"`
+type VerifyAPIRequestV2 struct {
+	KeyID        string      `json:"key_id"`
+	SBOM         interface{} `json:"sbom"`
+	SignatureB64 string      `json:"signature_b64"`
+}
+
+type VerifyResultAPIResponseV2 struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+type VerifyCMDRequest struct {
+	KeyID        string      `json:"key_id"`
+	SBOM         interface{} `json:"sbom"`
+	SignatureB64 string      `json:"signature_b64,omitempty"`
 }
 
 type generateKeyRequest struct {

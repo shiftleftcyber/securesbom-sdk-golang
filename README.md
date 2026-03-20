@@ -8,7 +8,7 @@
 [![codecov](https://codecov.io/gh/shiftleftcyber/securesbom-sdk-golang/branch/main/graph/badge.svg)](https://codecov.io/gh/shiftleftcyber/securesbom-sdk-golang)-->
 
 A Go SDK for cryptographically signing and verifying Software Bill of Materials
-(SBOM) documents using the ShiftLeftCyber SecureSBOM service.
+(SBOM) documents using the ShiftLeftCyber SecureSBOM API.
 
 ## Features
 
@@ -198,34 +198,30 @@ make build-examples
 make install-examples
 ```
 
-### Sign an SBOM
+### Sign and Verify a CycloneDX SBOM
 
 ```bash
 export SECURE_SBOM_API_KEY="your-api-key"
+export SECURE_SBOM_SIGNING_KEY_ID="my-key-123"
 
 # Sign from file
-./bin/sign -key-id my-key-123 -sbom sbom.json -output signed.json
+./bin/sign -key-id ${SECURE_SBOM_SIGNING_KEY_ID} -sbom samples/cdx/sbomex-cdx.json -output output.json
 
-# Sign from stdin
-cat sbom.json | ./bin/sign -key-id my-key-123 > signed.json
+# extract the signed SBOM from the response payload
+cat output.json | jq .signed_sbom > sbomex-cdx.signed.json
+
+# Verify the SBOM which contains the embedded signature
+./bin/verify -key-id ${SECURE_SBOM_SIGNING_KEY_ID} -sbom sbomex-cdx.signed.json
 ```
 
-### Verify a Signed SBOM
+### Sign and Verify a SPDX SBOM
 
 ```bash
 # Verify and show result
-./bin/verify -key-id my-key-123 -sbom signed.json
+./bin/sign -key-id ${SECURE_SBOM_SIGNING_KEY_ID} -sbom samples/spdx/sbom-tool/sbomex-spdx.json -output output.json
 
-# Verify with JSON output
-./bin/verify -key-id my-key-123 -sbom signed.json -output json
-
-# Use in scripts (check exit code)
-if ./bin/verify -key-id my-key-123 -sbom signed.json -quiet; then
-    echo "Valid signature"
-else
-    echo "Invalid signature"
-    exit 1
-fi
+# Verify using the SBOM and Signautre from the response object
+./bin/verify -key-id ${SECURE_SBOM_SIGNING_KEY_ID} -sbom samples/spdx/sbom-tool/sbomex-spdx.json -signature $(cat output.json | jq -r .signature_b64)
 ```
 
 ### Manage Keys

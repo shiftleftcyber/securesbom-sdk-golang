@@ -16,37 +16,25 @@
 
 package securesbom
 
-import (
-	"encoding/json"
-)
-
-// GetSignatureValue returns the signature value as a string for convenience
-func (sr SignResultAPIResponse) GetSignatureValue() string {
-	if sig, ok := sr["signature"].(map[string]interface{}); ok {
-		if value, ok := sig["value"].(string); ok {
-			return value
-		}
+// GetSignatureValue returns the signature value as a string for convenience.
+func (sr SignResultAPIResponseV2) GetSignatureValue() string {
+	if sr.Signature != "" {
+		return sr.Signature
 	}
-	return ""
+	return sr.SignatureB64
 }
 
-// GetSignatureAlgorithm returns the signature algorithm
-func (sr SignResultAPIResponse) GetSignatureAlgorithm() string {
-	if sig, ok := sr["signature"].(map[string]interface{}); ok {
-		if alg, ok := sig["algorithm"].(string); ok {
-			return alg
-		}
-	}
-	return ""
+// GetSignatureAlgorithm returns the signature algorithm.
+func (sr SignResultAPIResponseV2) GetSignatureAlgorithm() string {
+	return sr.Algorithm
 }
 
-// GetSignedSBOMBytes returns the complete signed SBOM as JSON bytes
-func (sr SignResultAPIResponse) GetSignedSBOMBytes() ([]byte, error) {
-	return json.Marshal(sr)
+// GetSignedSBOMBytes returns the signed SBOM payload as JSON bytes.
+func (sr SignResultAPIResponseV2) GetSignedSBOMBytes() ([]byte, error) {
+	return sr.SignedSBOM, nil
 }
 
-// HasSignature returns true if the SBOM contains a signature
-func (sr SignResultAPIResponse) HasSignature() bool {
-	_, ok := sr["signature"]
-	return ok
+// HasSignature returns true if the response contains a detached signature.
+func (sr SignResultAPIResponseV2) HasSignature() bool {
+	return sr.Signature != "" || sr.SignatureB64 != ""
 }

@@ -132,6 +132,10 @@ func LoadSBOMFromFile(filePath string) (*SBOM, error) {
 }
 
 func (s *SBOM) Data() interface{} {
+	if s == nil {
+		return nil
+	}
+
 	return s.data
 }
 
@@ -279,21 +283,11 @@ func (r *RetryingClient) SignSBOMWithOptions(ctx context.Context, keyID string, 
 	return result, err
 }
 
-func (r *RetryingClient) VerifySBOM(ctx context.Context, keyID string, signedSBOM interface{}) (*VerifyResultCMDResponse, error) {
+func (r *RetryingClient) VerifySBOM(ctx context.Context, req VerifyCMDRequest) (*VerifyResultCMDResponse, error) {
 	var result *VerifyResultCMDResponse
 	err := WithRetry(ctx, r.retryConfig, func() error {
 		var err error
-		result, err = r.client.VerifySBOM(ctx, keyID, signedSBOM)
-		return err
-	})
-	return result, err
-}
-
-func (r *RetryingClient) VerifySPDXSBOM(ctx context.Context, keyID string, signature string, signedSBOM interface{}) (*VerifyResultCMDResponse, error) {
-	var result *VerifyResultCMDResponse
-	err := WithRetry(ctx, r.retryConfig, func() error {
-		var err error
-		result, err = r.client.VerifySPDXSBOM(ctx, keyID, signature, signedSBOM)
+		result, err = r.client.VerifySBOM(ctx, req)
 		return err
 	})
 	return result, err
