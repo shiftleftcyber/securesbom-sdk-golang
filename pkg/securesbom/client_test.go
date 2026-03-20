@@ -111,7 +111,7 @@ func TestNewClient(t *testing.T) {
 				Timeout: -1 * time.Second,
 			},
 			expectError: true,
-			errorMsg:    "Timeout cannot be negative",
+			errorMsg:    "timeout cannot be negative",
 		},
 		{
 			name: "valid config with defaults",
