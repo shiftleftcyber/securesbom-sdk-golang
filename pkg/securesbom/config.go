@@ -126,7 +126,9 @@ func LoadSBOMFromFile(filePath string) (*SBOM, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file %s: %w", filePath, err)
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	return LoadSBOMFromReader(file)
 }
@@ -150,7 +152,9 @@ func (s *SBOM) WriteToFile(filePath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create file %s: %w", filePath, err)
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	return s.WriteToWriter(file)
 }

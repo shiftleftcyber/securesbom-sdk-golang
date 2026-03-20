@@ -99,7 +99,7 @@ func NewClient(config *Config) (*Client, error) {
 		cfg.UserAgent = UserAgent
 	}
 
-	var httpClient HTTPClient = cfg.HTTPClient
+	var httpClient = cfg.HTTPClient
 	if httpClient == nil {
 		httpClient = &http.Client{
 			Timeout: cfg.Timeout,
@@ -126,7 +126,7 @@ func validateConfig(config *Config) error {
 	}
 
 	if config.Timeout < 0 {
-		return fmt.Errorf("Timeout cannot be negative")
+		return fmt.Errorf("timeout cannot be negative")
 	}
 
 	return nil
@@ -171,7 +171,9 @@ func (c *Client) doRequest(ctx context.Context, method, endpoint string, body in
 
 	// Handle HTTP error status codes
 	if resp.StatusCode >= 400 {
-		defer resp.Body.Close()
+		defer func() {
+			_ = resp.Body.Close()
+		}()
 
 		apiErr := &APIError{
 			StatusCode: resp.StatusCode,
@@ -209,7 +211,9 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("health check failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	return nil
 }
@@ -219,7 +223,9 @@ func (c *Client) ListKeys(ctx context.Context) (*KeyListResponse, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to list keys: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != 200 {
 		body, _ := io.ReadAll(resp.Body)
@@ -271,7 +277,9 @@ func (c *Client) generateKey(ctx context.Context, backend string) (*GenerateKeyC
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate key: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusCreated {
 		bodyBytes, _ := io.ReadAll(resp.Body)
@@ -305,7 +313,9 @@ func (c *Client) GetPublicKey(ctx context.Context, keyID string) (string, error)
 	if err != nil {
 		return "", fmt.Errorf("failed to get public key: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != 200 {
 		body, _ := io.ReadAll(resp.Body)
