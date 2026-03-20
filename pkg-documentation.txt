@@ -11,9 +11,11 @@ const (
 )
 const (
 	API_VERSION              = "/api/v1"
+	API_VERSION_V2           = "/api/v2"
 	API_ENDPOINT_HEALTHCHECK = "/infra/healthcheck"
 	API_ENDPOINT_KEYS        = "/keys"
 	API_ENDPOINT_SBOM        = "/sbom"
+	API_ENDPOING_DIGEST      = "/digest"
 
 	DEFAULT_SECURE_SBOM_BASE_URL = "https://secure-sbom-api-prod-gateway-dhncnyq8.uc.gateway.dev"
 
@@ -21,7 +23,7 @@ const (
 	HTTP_METHOD_POST = http.MethodPost
 )
 const (
-	Version = "1.0.0"
+	Version = "3.0.0"
 )
     Version information
 
@@ -71,14 +73,11 @@ func (c *Client) HealthCheck(ctx context.Context) error
 
 func (c *Client) ListKeys(ctx context.Context) (*KeyListResponse, error)
 
-func (c *Client) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponse, error)
+func (c *Client) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponseV2, error)
 
-func (c *Client) SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponse, error)
+func (c *Client) SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponseV2, error)
 
-func (c *Client) VerifySBOM(ctx context.Context, keyID string, signedSBOM interface{}) (*VerifyResultCMDResponse, error)
-    VerifySBOM verifies a signed SBOM using the specified key
-
-func (c *Client) VerifySPDXSBOM(ctx context.Context, keyID string, signature string, signedSBOM interface{}) (*VerifyResultCMDResponse, error)
+func (c *Client) VerifySBOM(ctx context.Context, req VerifyCMDRequest) (*VerifyResultCMDResponse, error)
     VerifySBOM verifies a signed SBOM using the specified key
 
 type ClientInterface interface {
@@ -87,10 +86,9 @@ type ClientInterface interface {
 	GenerateKey(ctx context.Context) (*GenerateKeyCMDResponse, error)
 	GenerateKeyWithBackend(ctx context.Context, backend string) (*GenerateKeyCMDResponse, error)
 	GetPublicKey(ctx context.Context, keyID string) (string, error)
-	SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponse, error)
-	SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponse, error)
-	VerifySBOM(ctx context.Context, keyID string, signedSBOM interface{}) (*VerifyResultCMDResponse, error)
-	VerifySPDXSBOM(ctx context.Context, keyID string, signature string, signedSBOM interface{}) (*VerifyResultCMDResponse, error)
+	SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponseV2, error)
+	SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponseV2, error)
+	VerifySBOM(ctx context.Context, req VerifyCMDRequest) (*VerifyResultCMDResponse, error)
 }
 
 type ClientOption func(*Config)
@@ -191,13 +189,11 @@ func (r *RetryingClient) HealthCheck(ctx context.Context) error
 
 func (r *RetryingClient) ListKeys(ctx context.Context) (*KeyListResponse, error)
 
-func (r *RetryingClient) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponse, error)
+func (r *RetryingClient) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponseV2, error)
 
-func (r *RetryingClient) SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponse, error)
+func (r *RetryingClient) SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponseV2, error)
 
-func (r *RetryingClient) VerifySBOM(ctx context.Context, keyID string, signedSBOM interface{}) (*VerifyResultCMDResponse, error)
-
-func (r *RetryingClient) VerifySPDXSBOM(ctx context.Context, keyID string, signature string, signedSBOM interface{}) (*VerifyResultCMDResponse, error)
+func (r *RetryingClient) VerifySBOM(ctx context.Context, req VerifyCMDRequest) (*VerifyResultCMDResponse, error)
 
 type SBOM struct {
 	// Has unexported fields.
@@ -222,30 +218,47 @@ type SignOptions struct {
 	Pretty   bool
 }
 
-type SignResultAPIResponse map[string]interface{}
-    intentenoly do not define a type for a sign result since we need to support
-    many different types of sboms/reponses
+type SignResultAPIResponseV2 struct {
+	SignedSBOM   json.RawMessage `json:"signed_sbom,omitempty"`
+	Algorithm    string          `json:"algorithm"`
+	Detached     bool            `json:"detached"`
+	SBOMType     string          `json:"sbom_type,omitempty"`
+	Signature    string          `json:"signature,omitempty"`
+	SignatureB64 string          `json:"signature_b64,omitempty"`
+}
 
-func (sr SignResultAPIResponse) GetSignatureAlgorithm() string
-    GetSignatureAlgorithm returns the signature algorithm
+func (sr SignResultAPIResponseV2) GetSignatureAlgorithm() string
+    GetSignatureAlgorithm returns the signature algorithm.
 
-func (sr SignResultAPIResponse) GetSignatureValue() string
-    GetSignatureValue returns the signature value as a string for convenience
+func (sr SignResultAPIResponseV2) GetSignatureValue() string
+    GetSignatureValue returns the signature value as a string for convenience.
 
-func (sr SignResultAPIResponse) GetSignedSBOMBytes() ([]byte, error)
-    GetSignedSBOMBytes returns the complete signed SBOM as JSON bytes
+func (sr SignResultAPIResponseV2) GetSignedSBOMBytes() ([]byte, error)
+    GetSignedSBOMBytes returns the signed SBOM payload as JSON bytes.
 
-func (sr SignResultAPIResponse) HasSignature() bool
-    HasSignature returns true if the SBOM contains a signature
+func (sr SignResultAPIResponseV2) HasSignature() bool
+    HasSignature returns true if the response contains a detached signature.
 
-type VerifyResultAPIResponse struct {
-	Message   string `json:"message"`
-	KeyID     string `json:"key_id"`
-	Algorithm string `json:"algorithm"`
+type VerifyAPIRequestV2 struct {
+	KeyID        string      `json:"key_id"`
+	SBOM         interface{} `json:"sbom"`
+	SignatureB64 string      `json:"signature_b64"`
+}
+
+type VerifyCMDRequest struct {
+	KeyID        string      `json:"key_id"`
+	SBOM         interface{} `json:"sbom"`
+	SignatureB64 string      `json:"signature_b64,omitempty"`
+}
+
+type VerifyResultAPIResponseV2 struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }
 
 type VerifyResultCMDResponse struct {
 	Valid     bool      `json:"valid"`
+	Code      string    `json:"code"`
 	Message   string    `json:"message,omitempty"`
 	KeyID     string    `json:"key_id,omitempty"`
 	Algorithm string    `json:"algorithm,omitempty"`
