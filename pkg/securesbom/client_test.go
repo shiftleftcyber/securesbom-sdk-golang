@@ -111,7 +111,7 @@ func TestNewClient(t *testing.T) {
 				Timeout: -1 * time.Second,
 			},
 			expectError: true,
-			errorMsg:    "Timeout cannot be negative",
+			errorMsg:    "timeout cannot be negative",
 		},
 		{
 			name: "valid config with defaults",
@@ -692,11 +692,12 @@ func TestClient_SignSBOM(t *testing.T) {
 			name:  "successful SBOM signing",
 			keyID: "key-123",
 			sbom:  map[string]string{"name": "test-sbom"},
-			mockResponse: createMockResponse(200, SignResultAPIResponse{
-				"signed_sbom": map[string]interface{}{"signed": true},
-				"signature":   "signature-data",
-				"algorithm":   "ES256",
-				"key_id":      "key-123",
+			mockResponse: createMockResponse(200, SignResultAPIResponseV2{
+				SignedSBOM: json.RawMessage(`{"signed": true}`),
+				Signature:  "signature-data",
+				Algorithm:  "ES256",
+				SBOMType:   "cyclonedx",
+				Detached:   false,
 			}),
 			expectError: false,
 		},
@@ -726,7 +727,7 @@ func TestClient_SignSBOM(t *testing.T) {
 			mockClient := &MockHTTPClient{
 				DoFunc: func(req *http.Request) (*http.Response, error) {
 					if tt.keyID != "" && tt.sbom != nil {
-						expectedURL := "https://api.example.com/api/v1/sbom/sign"
+						expectedURL := "https://api.example.com/api/v2/sbom/sign"
 						if req.URL.String() != expectedURL {
 							t.Errorf("expected URL %q, got %q", expectedURL, req.URL.String())
 						}
@@ -829,7 +830,7 @@ func TestClient_VerifySBOM(t *testing.T) {
 			mockClient := &MockHTTPClient{
 				DoFunc: func(req *http.Request) (*http.Response, error) {
 					if tt.keyID != "" && tt.signedSBOM != nil {
-						expectedURL := "https://api.example.com/api/v1/sbom/verify"
+						expectedURL := "https://api.example.com/api/v2/sbom/verify"
 						if req.URL.String() != expectedURL {
 							t.Errorf("expected URL %q, got %q", expectedURL, req.URL.String())
 						}
@@ -839,8 +840,8 @@ func TestClient_VerifySBOM(t *testing.T) {
 							bodyBytes, _ := io.ReadAll(req.Body)
 							var requestBody map[string]interface{}
 							if json.Unmarshal(bodyBytes, &requestBody) == nil {
-								if _, ok := requestBody["signed_sbom"]; !ok {
-									t.Error("expected request body to contain 'signed_sbom' field")
+								if _, ok := requestBody["sbom"]; !ok {
+									t.Error("expected request body to contain 'sbom' field")
 								}
 							}
 						}
@@ -866,7 +867,11 @@ func TestClient_VerifySBOM(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			result, err := client.VerifySBOM(ctx, tt.keyID, tt.signedSBOM)
+			cmdRequest := VerifyCMDRequest{
+				KeyID: tt.keyID,
+				SBOM:  tt.signedSBOM,
+			}
+			result, err := client.VerifySBOM(ctx, cmdRequest)
 
 			if tt.expectError {
 				if err == nil {

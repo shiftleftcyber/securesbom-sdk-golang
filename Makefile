@@ -114,8 +114,8 @@ fmt-check: ## Check if code is formatted
 	fi
 
 .PHONY: lint
-lint: ## Run golangci-lint
-	$(GOLANGCI_LINT) run ./...
+lint:
+	@DOCKER run --rm -v $(shell pwd):/app -w /app golangci/golangci-lint:v2.8.0-alpine golangci-lint run ./...
 
 .PHONY: vet
 vet: ## Run go vet

@@ -40,7 +40,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strings"
@@ -65,10 +64,9 @@ type ClientInterface interface {
 	GenerateKey(ctx context.Context) (*GenerateKeyCMDResponse, error)
 	GenerateKeyWithBackend(ctx context.Context, backend string) (*GenerateKeyCMDResponse, error)
 	GetPublicKey(ctx context.Context, keyID string) (string, error)
-	SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponse, error)
-	SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponse, error)
-	VerifySBOM(ctx context.Context, keyID string, signedSBOM interface{}) (*VerifyResultCMDResponse, error)
-	VerifySPDXSBOM(ctx context.Context, keyID string, signature string, signedSBOM interface{}) (*VerifyResultCMDResponse, error)
+	SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponseV2, error)
+	SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponseV2, error)
+	VerifySBOM(ctx context.Context, req VerifyCMDRequest) (*VerifyResultCMDResponse, error)
 }
 
 func (e *APIError) Error() string {
@@ -101,7 +99,7 @@ func NewClient(config *Config) (*Client, error) {
 		cfg.UserAgent = UserAgent
 	}
 
-	var httpClient HTTPClient = cfg.HTTPClient
+	var httpClient = cfg.HTTPClient
 	if httpClient == nil {
 		httpClient = &http.Client{
 			Timeout: cfg.Timeout,
@@ -128,7 +126,7 @@ func validateConfig(config *Config) error {
 	}
 
 	if config.Timeout < 0 {
-		return fmt.Errorf("Timeout cannot be negative")
+		return fmt.Errorf("timeout cannot be negative")
 	}
 
 	return nil
@@ -173,7 +171,9 @@ func (c *Client) doRequest(ctx context.Context, method, endpoint string, body in
 
 	// Handle HTTP error status codes
 	if resp.StatusCode >= 400 {
-		defer resp.Body.Close()
+		defer func() {
+			_ = resp.Body.Close()
+		}()
 
 		apiErr := &APIError{
 			StatusCode: resp.StatusCode,
@@ -206,64 +206,14 @@ func (c *Client) doRequest(ctx context.Context, method, endpoint string, body in
 	return resp, nil
 }
 
-func (c *Client) doMultipartRequest(ctx context.Context, method, endpoint string, body io.Reader, contentType string) (*http.Response, error) {
-	url := c.buildURL(endpoint)
-
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Set authentication and headers
-	req.Header.Set("x-api-key", c.config.APIKey)
-	req.Header.Set("User-Agent", c.config.UserAgent)
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", contentType)
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
-	}
-
-	if resp.StatusCode >= 400 {
-		defer resp.Body.Close()
-
-		apiErr := &APIError{
-			StatusCode: resp.StatusCode,
-			Message:    http.StatusText(resp.StatusCode),
-		}
-
-		if bodyBytes, err := io.ReadAll(resp.Body); err == nil && len(bodyBytes) > 0 {
-			var errorResp struct {
-				Message   string `json:"message"`
-				Details   string `json:"details"`
-				RequestID string `json:"request_id"`
-				Error     string `json:"error"`
-			}
-
-			if json.Unmarshal(bodyBytes, &errorResp) == nil {
-				if errorResp.Message != "" {
-					apiErr.Message = errorResp.Message
-				} else if errorResp.Error != "" {
-					apiErr.Message = errorResp.Error
-				}
-				apiErr.Details = errorResp.Details
-				apiErr.RequestID = errorResp.RequestID
-			}
-		}
-
-		return nil, apiErr
-	}
-
-	return resp, nil
-}
-
 func (c *Client) HealthCheck(ctx context.Context) error {
 	resp, err := c.doRequest(ctx, "GET", API_ENDPOINT_HEALTHCHECK, nil)
 	if err != nil {
 		return fmt.Errorf("health check failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	return nil
 }
@@ -273,7 +223,9 @@ func (c *Client) ListKeys(ctx context.Context) (*KeyListResponse, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to list keys: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != 200 {
 		body, _ := io.ReadAll(resp.Body)
@@ -325,7 +277,9 @@ func (c *Client) generateKey(ctx context.Context, backend string) (*GenerateKeyC
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate key: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusCreated {
 		bodyBytes, _ := io.ReadAll(resp.Body)
@@ -354,12 +308,14 @@ func (c *Client) GetPublicKey(ctx context.Context, keyID string) (string, error)
 		return "", fmt.Errorf("keyID is required")
 	}
 
-	endpoint := fmt.Sprintf(API_VERSION + API_ENDPOINT_KEYS + "/public?key_id=" + keyID)
+	endpoint := API_VERSION + API_ENDPOINT_KEYS + "/public?key_id=" + keyID
 	resp, err := c.doRequest(ctx, "GET", endpoint, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to get public key: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != 200 {
 		body, _ := io.ReadAll(resp.Body)
@@ -375,16 +331,16 @@ func (c *Client) GetPublicKey(ctx context.Context, keyID string) (string, error)
 	return string(body), nil
 }
 
-func (c *Client) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponse, error) {
+func (c *Client) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponseV2, error) {
 	// Default behavior: embedded signature, no extras
 	return c.signSBOM(ctx, keyID, sbom, SignOptions{})
 }
 
-func (c *Client) SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponse, error) {
+func (c *Client) SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponseV2, error) {
 	return c.signSBOM(ctx, keyID, sbom, opts)
 }
 
-func (c *Client) signSBOM(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponse, error) {
+func (c *Client) signSBOM(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponseV2, error) {
 	if keyID == "" {
 		return nil, fmt.Errorf("keyID is required")
 	}
@@ -392,102 +348,64 @@ func (c *Client) signSBOM(ctx context.Context, keyID string, sbom interface{}, o
 		return nil, fmt.Errorf("sbom is required")
 	}
 
-	// Base endpoint
-	endpoint := API_VERSION + API_ENDPOINT_SBOM + "/sign"
+	endpoint := API_VERSION_V2 + API_ENDPOINT_SBOM + "/sign"
 
-	// Add query params for options
-	q := url.Values{}
-	if opts.Detached {
-		q.Set("detached", "true")
-	}
-	if opts.Pretty {
-		q.Set("pretty", "true")
-	}
-	if qs := q.Encode(); qs != "" {
-		endpoint = endpoint + "?" + qs
-	}
-
-	// Prepare multipart body
-	sbomBytes, err := json.Marshal(sbom)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal SBOM: %w", err)
+	reqBody := struct {
+		KeyID    string      `json:"key_id"`
+		SBOM     interface{} `json:"sbom"`
+		Pretty   bool        `json:"pretty,omitempty"`
+		Detached bool        `json:"detached,omitempty"`
+	}{
+		KeyID:    keyID,
+		SBOM:     sbom,
+		Pretty:   opts.Pretty,
+		Detached: opts.Detached,
 	}
 
-	var buf bytes.Buffer
-	writer := multipart.NewWriter(&buf)
-
-	part, err := writer.CreateFormFile("sbom", "sbom.json")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create form file: %w", err)
-	}
-
-	if _, err := part.Write(sbomBytes); err != nil {
-		return nil, fmt.Errorf("failed to write SBOM data: %w", err)
-	}
-
-	if err := writer.WriteField("key_id", keyID); err != nil {
-		return nil, fmt.Errorf("failed to write key_id field: %w", err)
-	}
-
-	if err := writer.Close(); err != nil {
-		return nil, fmt.Errorf("failed to close form writer: %w", err)
-	}
-
-	resp, err := c.doMultipartRequest(ctx, http.MethodPost, endpoint, &buf, writer.FormDataContentType())
+	resp, err := c.doRequest(ctx, http.MethodPost, endpoint, reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign SBOM: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
-	var result SignResultAPIResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
+	var result SignResultAPIResponseV2
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode sign response: %w", err)
 	}
 
 	return &result, nil
 }
 
 // VerifySBOM verifies a signed SBOM using the specified key
-func (c *Client) VerifySBOM(ctx context.Context, keyID string, signedSBOM interface{}) (*VerifyResultCMDResponse, error) {
-	if keyID == "" {
+func (c *Client) VerifySBOM(ctx context.Context, req VerifyCMDRequest) (*VerifyResultCMDResponse, error) {
+	if req.KeyID == "" {
 		return nil, fmt.Errorf("keyID is required")
 	}
-	if signedSBOM == nil {
-		return nil, fmt.Errorf("signedSBOM is required")
+	if req.SBOM == nil {
+		return nil, fmt.Errorf("sbom is required for verification")
 	}
 
-	endpoint := fmt.Sprintf(API_VERSION + API_ENDPOINT_SBOM + "/verify")
+	endpoint := fmt.Sprintf(API_VERSION_V2 + API_ENDPOINT_SBOM + "/verify")
 
-	signedSBOMBytes, err := json.Marshal(signedSBOM)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal signed SBOM: %w", err)
+	reqBody := VerifyAPIRequestV2{
+		KeyID: req.KeyID,
+		SBOM:  req.SBOM,
 	}
 
-	var buf bytes.Buffer
-	writer := multipart.NewWriter(&buf)
-
-	part, err := writer.CreateFormFile("sbom", "signed-sbom.json")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create form file: %w", err)
+	if req.SignatureB64 != "" {
+		reqBody.SignatureB64 = req.SignatureB64
 	}
 
-	if _, err := part.Write(signedSBOMBytes); err != nil {
-		return nil, fmt.Errorf("failed to write signed SBOM data: %w", err)
-	}
-
-	if err := writer.WriteField("key_id", keyID); err != nil {
-		return nil, fmt.Errorf("failed to write key_id field: %w", err)
-	}
-
-	if err := writer.Close(); err != nil {
-		return nil, fmt.Errorf("failed to close form writer: %w", err)
-	}
-
-	resp, err := c.doMultipartRequest(ctx, "POST", endpoint, &buf, writer.FormDataContentType())
+	resp, err := c.doRequest(ctx, http.MethodPost, endpoint, reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify SBOM: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -495,159 +413,33 @@ func (c *Client) VerifySBOM(ctx context.Context, keyID string, signedSBOM interf
 	}
 
 	switch resp.StatusCode {
-	case 200:
-		// Success case - signature is valid
-		var apiResp VerifyResultAPIResponse
-		if err := json.Unmarshal(bodyBytes, &apiResp); err != nil {
+	case http.StatusOK:
+		var apiResp VerifyResultAPIResponseV2
+		err = json.Unmarshal(bodyBytes, &apiResp)
+		if err != nil {
 			return nil, fmt.Errorf("failed to decode success response: %w", err)
 		}
 
 		return &VerifyResultCMDResponse{
 			Valid:     true,
+			Code:      apiResp.Code,
 			Message:   apiResp.Message,
-			KeyID:     apiResp.KeyID,
-			Algorithm: apiResp.Algorithm,
+			KeyID:     reqBody.KeyID,
 			Timestamp: time.Now(),
 		}, nil
-
-	case 500:
-		// Error case - signature verification failed
-		// First try to parse as structured error response
-		var apiErr APIErrorResponse
-		if err := json.Unmarshal(bodyBytes, &apiErr); err != nil {
-			// If JSON parsing fails, treat the response as plain text
-			errorMsg := strings.TrimSpace(string(bodyBytes))
-			if errorMsg == "" {
-				errorMsg = "signature verification failed"
-			}
-			return &VerifyResultCMDResponse{
-				Valid:     false,
-				Message:   errorMsg,
-				Timestamp: time.Now(),
-			}, nil
-		}
-
-		errorMessage := apiErr.Message
-		if errorMessage == "" {
-			errorMessage = apiErr.Error
-		}
-		if errorMessage == "" {
-			errorMessage = "signature verification failed"
+	default:
+		var apiResp VerifyResultAPIResponseV2
+		err = json.Unmarshal(bodyBytes, &apiResp)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode error response: %w", err)
 		}
 
 		return &VerifyResultCMDResponse{
 			Valid:     false,
-			Message:   errorMessage,
-			Timestamp: time.Now(),
-		}, nil
-
-	default:
-		return nil, fmt.Errorf("unexpected response status %d: %s", resp.StatusCode, string(bodyBytes))
-	}
-}
-
-// VerifySBOM verifies a signed SBOM using the specified key
-func (c *Client) VerifySPDXSBOM(ctx context.Context, keyID string, signature string, signedSBOM interface{}) (*VerifyResultCMDResponse, error) {
-	if keyID == "" {
-		return nil, fmt.Errorf("keyID is required")
-	}
-	if signedSBOM == nil {
-		return nil, fmt.Errorf("signedSBOM is required")
-	}
-	if signature == "" {
-		return nil, fmt.Errorf("signature is required for SPDX")
-	}
-
-	endpoint := fmt.Sprintf(API_VERSION + API_ENDPOINT_SBOM + "/verify")
-
-	signedSBOMBytes, err := json.Marshal(signedSBOM)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal signed SBOM: %w", err)
-	}
-
-	var buf bytes.Buffer
-	writer := multipart.NewWriter(&buf)
-
-	part, err := writer.CreateFormFile("sbom", "signed-sbom.json")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create form file: %w", err)
-	}
-
-	if _, err := part.Write(signedSBOMBytes); err != nil {
-		return nil, fmt.Errorf("failed to write signed SBOM data: %w", err)
-	}
-
-	if err := writer.WriteField("key_id", keyID); err != nil {
-		return nil, fmt.Errorf("failed to write key_id field: %w", err)
-	}
-
-	if err := writer.WriteField("signature", signature); err != nil {
-		return nil, fmt.Errorf("failed to write signature field: %w", err)
-	}
-
-	if err := writer.Close(); err != nil {
-		return nil, fmt.Errorf("failed to close form writer: %w", err)
-	}
-
-	resp, err := c.doMultipartRequest(ctx, "POST", endpoint, &buf, writer.FormDataContentType())
-	if err != nil {
-		return nil, fmt.Errorf("failed to verify SBOM: %w", err)
-	}
-	defer resp.Body.Close()
-
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	switch resp.StatusCode {
-	case 200:
-		// Success case - signature is valid
-		var apiResp VerifyResultAPIResponse
-		if err := json.Unmarshal(bodyBytes, &apiResp); err != nil {
-			return nil, fmt.Errorf("failed to decode success response: %w", err)
-		}
-
-		return &VerifyResultCMDResponse{
-			Valid:     true,
+			Code:      apiResp.Code,
 			Message:   apiResp.Message,
-			KeyID:     apiResp.KeyID,
-			Algorithm: apiResp.Algorithm,
+			KeyID:     reqBody.KeyID,
 			Timestamp: time.Now(),
 		}, nil
-
-	case 500:
-		// Error case - signature verification failed
-		// First try to parse as structured error response
-		var apiErr APIErrorResponse
-		if err := json.Unmarshal(bodyBytes, &apiErr); err != nil {
-			// If JSON parsing fails, treat the response as plain text
-			errorMsg := strings.TrimSpace(string(bodyBytes))
-			if errorMsg == "" {
-				errorMsg = "signature verification failed"
-			}
-			return &VerifyResultCMDResponse{
-				Valid:     false,
-				Message:   errorMsg,
-				Timestamp: time.Now(),
-			}, nil
-		}
-
-		errorMessage := apiErr.Message
-		if errorMessage == "" {
-			errorMessage = apiErr.Error
-		}
-		if errorMessage == "" {
-			errorMessage = "signature verification failed"
-		}
-
-		return &VerifyResultCMDResponse{
-			Valid:     false,
-			Message:   errorMessage,
-			Timestamp: time.Now(),
-		}, nil
-
-	default:
-		return nil, fmt.Errorf("unexpected response status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 }

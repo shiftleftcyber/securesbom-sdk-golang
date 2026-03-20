@@ -77,7 +77,10 @@ func runListCommand(args []string) {
 	output := fs.String("output", "table", "Output format: table, json")
 	timeout := fs.Duration("timeout", 30*time.Second, "Request timeout")
 	quiet := fs.Bool("quiet", false, "Suppress progress output")
-	fs.Parse(args)
+	err := fs.Parse(args)
+	if err != nil {
+		log.Fatalf("failed to runListCommand: %v", err)
+	}
 
 	// Validate output format
 	if *output != "table" && *output != "json" {
@@ -121,7 +124,10 @@ func runGenerateCommand(args []string) {
 	timeout := fs.Duration("timeout", 30*time.Second, "Request timeout")
 	quiet := fs.Bool("quiet", false, "Suppress progress output")
 	filesystemKey := fs.Bool("filesystemKey", false, "Generate filesystem-backed key (NOT FOR PRODUCTION USE)")
-	fs.Parse(args)
+	err := fs.Parse(args)
+	if err != nil {
+		log.Fatalf("failed to runGenerateCommand: %v", err)
+	}
 
 	// Validate output format
 	if *output != "table" && *output != "json" {
@@ -186,7 +192,10 @@ func runPublicCommand(args []string) {
 	outputFile := fs.String("output", "", "Output file (default: stdout)")
 	timeout := fs.Duration("timeout", 30*time.Second, "Request timeout")
 	quiet := fs.Bool("quiet", false, "Suppress progress output")
-	fs.Parse(args)
+	err := fs.Parse(args)
+	if err != nil {
+		log.Fatalf("failed to runPublicCommand: %v", err)
+	}
 
 	if fs.NArg() < 1 {
 		log.Fatal("Error: key-id is required\n\nUsage: keymgmt public <key-id> [options]")
@@ -245,10 +254,12 @@ func createClient(apiKey, baseURL string, timeout time.Duration) (securesbom.Cli
 // outputKeysTable displays keys in a formatted table
 func outputKeysTable(result *securesbom.KeyListResponse) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	defer w.Flush()
+	defer func() {
+		_ = w.Flush()
+	}()
 
-	fmt.Fprintf(w, "KEY ID\tCREATED\tALGORITHM\tBACKEND\tPROTECTION LEVEL\tPURPOSE\n")
-	fmt.Fprintf(w, "------\t-------\t---------\t---------\t---------\t---------\n")
+	_, _ = fmt.Fprintf(w, "KEY ID\tCREATED\tALGORITHM\tBACKEND\tPROTECTION LEVEL\tPURPOSE\n")
+	_, _ = fmt.Fprintf(w, "------\t-------\t---------\t---------\t---------\t---------\n")
 
 	for _, key := range result.Keys {
 		createdAt := key.CreatedAt.Format("2006-01-02 15:04")
@@ -256,12 +267,12 @@ func outputKeysTable(result *securesbom.KeyListResponse) {
 		if algorithm == "" {
 			algorithm = "default"
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", key.ID, createdAt, algorithm, key.Backend, key.ProtectionLevel,
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", key.ID, createdAt, algorithm, key.Backend, key.ProtectionLevel,
 			key.Purpose)
 	}
 
 	if len(result.Keys) == 0 {
-		fmt.Fprintf(w, "No keys found\t\t\n")
+		_, _ = fmt.Fprintf(w, "No keys found\t\t\n")
 	}
 }
 

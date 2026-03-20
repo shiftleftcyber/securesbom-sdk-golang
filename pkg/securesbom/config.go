@@ -126,12 +126,18 @@ func LoadSBOMFromFile(filePath string) (*SBOM, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file %s: %w", filePath, err)
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	return LoadSBOMFromReader(file)
 }
 
 func (s *SBOM) Data() interface{} {
+	if s == nil {
+		return nil
+	}
+
 	return s.data
 }
 
@@ -146,7 +152,9 @@ func (s *SBOM) WriteToFile(filePath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create file %s: %w", filePath, err)
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	return s.WriteToWriter(file)
 }
@@ -259,8 +267,8 @@ func (r *RetryingClient) GetPublicKey(ctx context.Context, keyID string) (string
 	return result, err
 }
 
-func (r *RetryingClient) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponse, error) {
-	var result *SignResultAPIResponse
+func (r *RetryingClient) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponseV2, error) {
+	var result *SignResultAPIResponseV2
 	err := WithRetry(ctx, r.retryConfig, func() error {
 		var err error
 		result, err = r.client.SignSBOM(ctx, keyID, sbom)
@@ -269,8 +277,8 @@ func (r *RetryingClient) SignSBOM(ctx context.Context, keyID string, sbom interf
 	return result, err
 }
 
-func (r *RetryingClient) SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponse, error) {
-	var result *SignResultAPIResponse
+func (r *RetryingClient) SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponseV2, error) {
+	var result *SignResultAPIResponseV2
 	err := WithRetry(ctx, r.retryConfig, func() error {
 		var err error
 		result, err = r.client.SignSBOMWithOptions(ctx, keyID, sbom, opts)
@@ -279,21 +287,11 @@ func (r *RetryingClient) SignSBOMWithOptions(ctx context.Context, keyID string, 
 	return result, err
 }
 
-func (r *RetryingClient) VerifySBOM(ctx context.Context, keyID string, signedSBOM interface{}) (*VerifyResultCMDResponse, error) {
+func (r *RetryingClient) VerifySBOM(ctx context.Context, req VerifyCMDRequest) (*VerifyResultCMDResponse, error) {
 	var result *VerifyResultCMDResponse
 	err := WithRetry(ctx, r.retryConfig, func() error {
 		var err error
-		result, err = r.client.VerifySBOM(ctx, keyID, signedSBOM)
-		return err
-	})
-	return result, err
-}
-
-func (r *RetryingClient) VerifySPDXSBOM(ctx context.Context, keyID string, signature string, signedSBOM interface{}) (*VerifyResultCMDResponse, error) {
-	var result *VerifyResultCMDResponse
-	err := WithRetry(ctx, r.retryConfig, func() error {
-		var err error
-		result, err = r.client.VerifySPDXSBOM(ctx, keyID, signature, signedSBOM)
+		result, err = r.client.VerifySBOM(ctx, req)
 		return err
 	})
 	return result, err
