@@ -856,8 +856,8 @@ func TestClient_SignDigest(t *testing.T) {
 							bodyBytes, _ := io.ReadAll(req.Body)
 							var requestBody map[string]interface{}
 							if json.Unmarshal(bodyBytes, &requestBody) == nil {
-								if requestBody["digest_b64"] != tt.req.Digest {
-									t.Errorf("expected digest_b64 %q, got %v", tt.req.Digest, requestBody["digest"])
+								if requestBody["digest"] != tt.req.Digest {
+									t.Errorf("expected digest %q, got %v", tt.req.Digest, requestBody["digest"])
 								}
 								if requestBody["hash_algorithm"] != tt.req.HashAlgorithm {
 									t.Errorf("expected hash_algorithm %q, got %v", tt.req.HashAlgorithm, requestBody["hash_algorithm"])
