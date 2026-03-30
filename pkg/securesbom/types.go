@@ -84,6 +84,19 @@ type SignResultAPIResponseV2 struct {
 	SignatureB64 string          `json:"signature_b64,omitempty"`
 }
 
+type SignDigestRequest struct {
+	DigestB64     string `json:"digest_b64"`
+	HashAlgorithm string `json:"hash_algorithm"`
+	KeyID         string `json:"key_id"`
+}
+
+type SignDigestResponse struct {
+	HashAlgorithm      string `json:"hash_algorithm"`
+	KeyID              string `json:"key_id"`
+	Signature          string `json:"signature"`
+	SignatureAlgorithm string `json:"signature_algorithm"`
+}
+
 // verification
 
 type VerifyResultCMDResponse struct {
