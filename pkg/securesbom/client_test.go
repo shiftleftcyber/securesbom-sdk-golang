@@ -847,7 +847,7 @@ func TestClient_SignDigest(t *testing.T) {
 			mockClient := &MockHTTPClient{
 				DoFunc: func(req *http.Request) (*http.Response, error) {
 					if tt.req.KeyID != "" && tt.req.DigestB64 != "" && tt.req.HashAlgorithm != "" {
-						expectedURL := "https://api.example.com/api/v1/sign/digest"
+						expectedURL := "https://api.example.com/api/v1/digest/sign"
 						if req.URL.String() != expectedURL {
 							t.Errorf("expected URL %q, got %q", expectedURL, req.URL.String())
 						}
