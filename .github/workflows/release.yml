@@ -141,6 +141,9 @@ jobs:
           # Build each example
           echo "Building sign..."
           go build -ldflags "$LDFLAGS" -o "dist/sign${EXT}" ./cmd/examples/sign/
+
+          echo "Building digest..."
+          go build -ldflags "$LDFLAGS" -o "dist/digest${EXT}" ./cmd/examples/digest/
           
           echo "Building verify..."
           go build -ldflags "$LDFLAGS" -o "dist/verify${EXT}" ./cmd/examples/verify/

@@ -783,6 +783,143 @@ func TestClient_SignSBOM(t *testing.T) {
 	}
 }
 
+func TestClient_SignDigest(t *testing.T) {
+	tests := []struct {
+		name         string
+		req          SignDigestRequest
+		mockResponse *http.Response
+		mockError    error
+		expectError  bool
+	}{
+		{
+			name: "successful digest signing",
+			req: SignDigestRequest{
+				DigestB64:     "Zm9vYmFy",
+				HashAlgorithm: "sha256",
+				KeyID:         "key-123",
+			},
+			mockResponse: createMockResponse(200, SignDigestResponse{
+				HashAlgorithm:      "sha256",
+				KeyID:              "key-123",
+				Signature:          "signature-data",
+				SignatureAlgorithm: "ES256",
+			}),
+			expectError: false,
+		},
+		{
+			name: "empty key ID",
+			req: SignDigestRequest{
+				DigestB64:     "Zm9vYmFy",
+				HashAlgorithm: "sha256",
+			},
+			expectError: true,
+		},
+		{
+			name: "empty digest",
+			req: SignDigestRequest{
+				HashAlgorithm: "sha256",
+				KeyID:         "key-123",
+			},
+			expectError: true,
+		},
+		{
+			name: "empty hash algorithm",
+			req: SignDigestRequest{
+				DigestB64: "Zm9vYmFy",
+				KeyID:     "key-123",
+			},
+			expectError: true,
+		},
+		{
+			name: "request failure",
+			req: SignDigestRequest{
+				DigestB64:     "Zm9vYmFy",
+				HashAlgorithm: "sha256",
+				KeyID:         "key-123",
+			},
+			mockError:   fmt.Errorf("network error"),
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := &MockHTTPClient{
+				DoFunc: func(req *http.Request) (*http.Response, error) {
+					if tt.req.KeyID != "" && tt.req.DigestB64 != "" && tt.req.HashAlgorithm != "" {
+						expectedURL := "https://api.example.com/api/v1/sign/digest"
+						if req.URL.String() != expectedURL {
+							t.Errorf("expected URL %q, got %q", expectedURL, req.URL.String())
+						}
+
+						if req.Body != nil {
+							bodyBytes, _ := io.ReadAll(req.Body)
+							var requestBody map[string]interface{}
+							if json.Unmarshal(bodyBytes, &requestBody) == nil {
+								if requestBody["digest_b64"] != tt.req.DigestB64 {
+									t.Errorf("expected digest_b64 %q, got %v", tt.req.DigestB64, requestBody["digest_b64"])
+								}
+								if requestBody["hash_algorithm"] != tt.req.HashAlgorithm {
+									t.Errorf("expected hash_algorithm %q, got %v", tt.req.HashAlgorithm, requestBody["hash_algorithm"])
+								}
+								if requestBody["key_id"] != tt.req.KeyID {
+									t.Errorf("expected key_id %q, got %v", tt.req.KeyID, requestBody["key_id"])
+								}
+							}
+						}
+					}
+					if req.Method != "POST" {
+						t.Errorf("expected POST method, got %q", req.Method)
+					}
+
+					if tt.mockError != nil {
+						return nil, tt.mockError
+					}
+					return tt.mockResponse, nil
+				},
+			}
+
+			client := &Client{
+				config: &Config{
+					APIKey:    "test-key",
+					BaseURL:   "https://api.example.com",
+					UserAgent: UserAgent,
+				},
+				httpClient: mockClient,
+			}
+
+			ctx := context.Background()
+			result, err := client.SignDigest(ctx, tt.req)
+
+			if tt.expectError {
+				if err == nil {
+					t.Error("expected error but got none")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+					return
+				}
+				if result == nil {
+					t.Error("expected result to be non-nil")
+				}
+				if result.HashAlgorithm != tt.req.HashAlgorithm {
+					t.Errorf("expected hash algorithm %q, got %q", tt.req.HashAlgorithm, result.HashAlgorithm)
+				}
+				if result.KeyID != tt.req.KeyID {
+					t.Errorf("expected key ID %q, got %q", tt.req.KeyID, result.KeyID)
+				}
+				if result.Signature == "" {
+					t.Error("expected signature to be populated")
+				}
+				if result.SignatureAlgorithm == "" {
+					t.Error("expected signature algorithm to be populated")
+				}
+			}
+		})
+	}
+}
+
 func TestClient_VerifySBOM(t *testing.T) {
 	tests := []struct {
 		name         string

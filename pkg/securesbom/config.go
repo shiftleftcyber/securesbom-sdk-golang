@@ -287,6 +287,16 @@ func (r *RetryingClient) SignSBOMWithOptions(ctx context.Context, keyID string, 
 	return result, err
 }
 
+func (r *RetryingClient) SignDigest(ctx context.Context, req SignDigestRequest) (*SignDigestResponse, error) {
+	var result *SignDigestResponse
+	err := WithRetry(ctx, r.retryConfig, func() error {
+		var err error
+		result, err = r.client.SignDigest(ctx, req)
+		return err
+	})
+	return result, err
+}
+
 func (r *RetryingClient) VerifySBOM(ctx context.Context, req VerifyCMDRequest) (*VerifyResultCMDResponse, error) {
 	var result *VerifyResultCMDResponse
 	err := WithRetry(ctx, r.retryConfig, func() error {

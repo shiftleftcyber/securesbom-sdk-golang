@@ -66,6 +66,7 @@ type ClientInterface interface {
 	GetPublicKey(ctx context.Context, keyID string) (string, error)
 	SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponseV2, error)
 	SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponseV2, error)
+	SignDigest(ctx context.Context, req SignDigestRequest) (*SignDigestResponse, error)
 	VerifySBOM(ctx context.Context, req VerifyCMDRequest) (*VerifyResultCMDResponse, error)
 }
 
@@ -338,6 +339,36 @@ func (c *Client) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (
 
 func (c *Client) SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponseV2, error) {
 	return c.signSBOM(ctx, keyID, sbom, opts)
+}
+
+func (c *Client) SignDigest(ctx context.Context, req SignDigestRequest) (*SignDigestResponse, error) {
+	if req.KeyID == "" {
+		return nil, fmt.Errorf("keyID is required")
+	}
+	if req.DigestB64 == "" {
+		return nil, fmt.Errorf("digestB64 is required")
+	}
+	if req.HashAlgorithm == "" {
+		return nil, fmt.Errorf("hashAlgorithm is required")
+	}
+
+	endpoint := API_VERSION + API_ENDPOING_DIGEST + "/sign"
+
+	resp, err := c.doRequest(ctx, http.MethodPost, endpoint, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign digest: %w", err)
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	var result SignDigestResponse
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode digest sign response: %w", err)
+	}
+
+	return &result, nil
 }
 
 func (c *Client) signSBOM(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponseV2, error) {

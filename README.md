@@ -15,7 +15,9 @@ A Go SDK for cryptographically signing and verifying Software Bill of Materials
 - **Sign SBOMs**: Cryptographically sign SBOM documents for authenticity
 and integrity
 
-- **Verify Signatures**: Validate signed SBOMs to ensure they haven't
+- **Sign Digests**: Create detached signatures from precomputed digests
+
+- **Verify Signatures**: Validate signed SBOMs to ensure they haven
 been tampered with
 
 - **Key Management**: Generate, list, and retrieve signing keys
@@ -110,6 +112,26 @@ if err != nil {
 // Save signed SBOM
 signedData, _ := json.Marshal(result)
 os.WriteFile("signed-sbom.json", signedData, 0644)
+```
+
+### Signing a Digest
+
+```go
+client, _ := securesbom.NewConfigBuilder().
+    WithAPIKey("your-api-key").
+    FromEnv().
+    BuildClient()
+
+result, err := client.SignDigest(ctx, securesbom.SignDigestRequest{
+    DigestB64:     "base64-encoded-digest",
+    HashAlgorithm: "sha256",
+    KeyID:         "key-123",
+})
+if err != nil {
+    log.Fatal(err)
+}
+
+fmt.Printf("%s %s\n", result.SignatureAlgorithm, result.Signature)
 ```
 
 ### Verifying a Signed SBOM
@@ -222,6 +244,14 @@ cat output.json | jq .signed_sbom > sbomex-cdx.signed.json
 
 # Verify using the SBOM and Signautre from the response object
 ./bin/verify -key-id ${SECURE_SBOM_SIGNING_KEY_ID} -sbom samples/spdx/sbom-tool/sbomex-spdx.json -signature $(cat output.json | jq -r .signature_b64)
+```
+
+### Sign a Digest
+
+```bash
+export SECURE_SBOM_API_KEY="your-api-key"
+
+./bin/digest -key-id my-key-123 -hash-algorithm sha256 -digest Zm9vYmFy
 ```
 
 ### Manage Keys

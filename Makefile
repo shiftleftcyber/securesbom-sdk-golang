@@ -37,13 +37,19 @@ LDFLAGS := -X $(shell $(GO) list .)/pkg/securesbom.Version=$(VERSION) \
 build: build-examples ## Build all examples
 
 .PHONY: build-examples
-build-examples: build-sign build-verify build-keymgmt
+build-examples: build-sign build-digest build-verify build-keymgmt
 
 .PHONY: build-sign
 build-sign: ## Build sign example
 	@echo "Building sign example..."
 	@mkdir -p $(BIN_DIR)
 	$(GO) build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/sign $(EXAMPLES_DIR)/sign/
+
+.PHONY: build-digest
+build-digest: ## Build digest signing example
+	@echo "Building digest example..."
+	@mkdir -p $(BIN_DIR)
+	$(GO) build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/digest $(EXAMPLES_DIR)/digest/
 
 .PHONY: build-verify  
 build-verify: ## Build verify example
@@ -60,6 +66,7 @@ build-keymgmt: ## Build keymgmt example
 .PHONY: install-examples
 install-examples: ## Install examples to $GOPATH/bin
 	$(GO) install -ldflags "$(LDFLAGS)" $(EXAMPLES_DIR)/sign/
+	$(GO) install -ldflags "$(LDFLAGS)" $(EXAMPLES_DIR)/digest/
 	$(GO) install -ldflags "$(LDFLAGS)" $(EXAMPLES_DIR)/verify/
 	$(GO) install -ldflags "$(LDFLAGS)" $(EXAMPLES_DIR)/keymgmt/
 
