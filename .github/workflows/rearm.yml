@@ -89,7 +89,7 @@ jobs:
           source_code_sbom_type: custom
           enable_securesbom: true
           securesbom_host: ${{ vars.SECURE_SBOM_API_URL }}
-          securesbom_pub_key_id: ${{ secrets.SECURE_SBOM_KEYID }}
+          securesbom_pub_key_id: ${{ vars.SECURE_SBOM_SIGNING_KEY_ID }}
           securesbom_api_key: ${{ secrets.SECURE_SBOM_API_KEY }}
           rearm_short_version: ${{ needs.setup.outputs.sanitized_project_version }}
           rearm_full_version: ${{ needs.setup.outputs.sanitized_project_version }}
