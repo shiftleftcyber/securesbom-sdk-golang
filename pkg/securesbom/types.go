@@ -85,7 +85,7 @@ type SignResultAPIResponseV2 struct {
 }
 
 type SignDigestRequest struct {
-	DigestB64     string `json:"digest_b64"`
+	Digest        string `json:"digest"`
 	HashAlgorithm string `json:"hash_algorithm"`
 	KeyID         string `json:"key_id"`
 }
@@ -95,6 +95,7 @@ type SignDigestResponse struct {
 	KeyID              string `json:"key_id"`
 	Signature          string `json:"signature"`
 	SignatureAlgorithm string `json:"signature_algorithm"`
+	PublicKey          any    `json:"publicKey,omitempty"`
 }
 
 // verification

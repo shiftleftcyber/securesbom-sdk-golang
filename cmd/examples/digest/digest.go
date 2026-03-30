@@ -47,7 +47,7 @@ func main() {
 	var (
 		keyID         = flag.String("key-id", "", "Key ID to use for signing (required)")
 		hashAlgorithm = flag.String("hash-algorithm", "", "Hash algorithm used to create the digest (required)")
-		digestB64     = flag.String("digest", "", "Base64-encoded digest to sign (required)")
+		digest     = flag.String("digest", "", "Base64-encoded digest to sign (required)")
 		outputPath    = flag.String("output", "", "Output file path (use '-' or omit for stdout)")
 		apiKey        = flag.String("api-key", "", "API key (or set SECURE_SBOM_API_KEY)")
 		baseURL       = flag.String("base-url", "", "API base URL (or set SECURE_SBOM_BASE_URL)")
@@ -70,7 +70,7 @@ func main() {
 	if *hashAlgorithm == "" {
 		log.Fatal("Error: -hash-algorithm is required")
 	}
-	if *digestB64 == "" {
+	if *digest == "" {
 		log.Fatal("Error: -digest is required")
 	}
 
@@ -94,9 +94,9 @@ func main() {
 	}
 
 	result, err := client.SignDigest(ctx, securesbom.SignDigestRequest{
-		DigestB64:     *digestB64,
-		HashAlgorithm: *hashAlgorithm,
-		KeyID:         *keyID,
+		Digest:     	*digest,
+		HashAlgorithm: 	*hashAlgorithm,
+		KeyID:         	*keyID,
 	})
 	if err != nil {
 		log.Fatalf("Error signing digest: %v", err)
@@ -180,12 +180,12 @@ func printUsage() {
 Sign a base64-encoded digest using the SecureSBOM service.
 
 USAGE:
-  %s -key-id KEY_ID -hash-algorithm HASH -digest-b64 DIGEST [options]
+  %s -key-id KEY_ID -hash-algorithm HASH -digest DIGEST [options]
 
 REQUIRED:
   -key-id string            Key ID to use for signing
   -hash-algorithm string    Hash algorithm used to create the digest
-  -digest-b64 string        Base64-encoded digest to sign
+  -digest string        	Base64-encoded digest to sign
 
 OPTIONS:
   -pretty bool      Pretty-print the response JSON

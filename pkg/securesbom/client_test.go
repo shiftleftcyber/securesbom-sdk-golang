@@ -794,7 +794,7 @@ func TestClient_SignDigest(t *testing.T) {
 		{
 			name: "successful digest signing",
 			req: SignDigestRequest{
-				DigestB64:     "Zm9vYmFy",
+				Digest:        "Zm9vYmFy",
 				HashAlgorithm: "sha256",
 				KeyID:         "key-123",
 			},
@@ -809,7 +809,7 @@ func TestClient_SignDigest(t *testing.T) {
 		{
 			name: "empty key ID",
 			req: SignDigestRequest{
-				DigestB64:     "Zm9vYmFy",
+				Digest:        "Zm9vYmFy",
 				HashAlgorithm: "sha256",
 			},
 			expectError: true,
@@ -825,15 +825,15 @@ func TestClient_SignDigest(t *testing.T) {
 		{
 			name: "empty hash algorithm",
 			req: SignDigestRequest{
-				DigestB64: "Zm9vYmFy",
-				KeyID:     "key-123",
+				Digest: "Zm9vYmFy",
+				KeyID:  "key-123",
 			},
 			expectError: true,
 		},
 		{
 			name: "request failure",
 			req: SignDigestRequest{
-				DigestB64:     "Zm9vYmFy",
+				Digest:        "Zm9vYmFy",
 				HashAlgorithm: "sha256",
 				KeyID:         "key-123",
 			},
@@ -846,7 +846,7 @@ func TestClient_SignDigest(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &MockHTTPClient{
 				DoFunc: func(req *http.Request) (*http.Response, error) {
-					if tt.req.KeyID != "" && tt.req.DigestB64 != "" && tt.req.HashAlgorithm != "" {
+					if tt.req.KeyID != "" && tt.req.Digest != "" && tt.req.HashAlgorithm != "" {
 						expectedURL := "https://api.example.com/api/v1/digest/sign"
 						if req.URL.String() != expectedURL {
 							t.Errorf("expected URL %q, got %q", expectedURL, req.URL.String())
@@ -856,8 +856,8 @@ func TestClient_SignDigest(t *testing.T) {
 							bodyBytes, _ := io.ReadAll(req.Body)
 							var requestBody map[string]interface{}
 							if json.Unmarshal(bodyBytes, &requestBody) == nil {
-								if requestBody["digest_b64"] != tt.req.DigestB64 {
-									t.Errorf("expected digest_b64 %q, got %v", tt.req.DigestB64, requestBody["digest_b64"])
+								if requestBody["digest_b64"] != tt.req.Digest {
+									t.Errorf("expected digest_b64 %q, got %v", tt.req.Digest, requestBody["digest"])
 								}
 								if requestBody["hash_algorithm"] != tt.req.HashAlgorithm {
 									t.Errorf("expected hash_algorithm %q, got %v", tt.req.HashAlgorithm, requestBody["hash_algorithm"])

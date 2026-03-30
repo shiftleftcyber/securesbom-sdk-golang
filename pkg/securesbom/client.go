@@ -345,7 +345,7 @@ func (c *Client) SignDigest(ctx context.Context, req SignDigestRequest) (*SignDi
 	if req.KeyID == "" {
 		return nil, fmt.Errorf("keyID is required")
 	}
-	if req.DigestB64 == "" {
+	if req.Digest == "" {
 		return nil, fmt.Errorf("digestB64 is required")
 	}
 	if req.HashAlgorithm == "" {
