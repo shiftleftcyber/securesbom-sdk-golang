@@ -47,7 +47,7 @@ func main() {
 	var (
 		keyID         = flag.String("key-id", "", "Key ID to use for signing (required)")
 		hashAlgorithm = flag.String("hash-algorithm", "", "Hash algorithm used to create the digest (required)")
-		digest     = flag.String("digest", "", "Base64-encoded digest to sign (required)")
+		digest        = flag.String("digest", "", "Base64-encoded digest to sign (required)")
 		outputPath    = flag.String("output", "", "Output file path (use '-' or omit for stdout)")
 		apiKey        = flag.String("api-key", "", "API key (or set SECURE_SBOM_API_KEY)")
 		baseURL       = flag.String("base-url", "", "API base URL (or set SECURE_SBOM_BASE_URL)")
@@ -94,9 +94,9 @@ func main() {
 	}
 
 	result, err := client.SignDigest(ctx, securesbom.SignDigestRequest{
-		Digest:     	*digest,
-		HashAlgorithm: 	*hashAlgorithm,
-		KeyID:         	*keyID,
+		Digest:        *digest,
+		HashAlgorithm: *hashAlgorithm,
+		KeyID:         *keyID,
 	})
 	if err != nil {
 		log.Fatalf("Error signing digest: %v", err)
