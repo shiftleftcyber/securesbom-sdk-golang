@@ -902,6 +902,7 @@ func TestClient_SignDigest(t *testing.T) {
 				}
 				if result == nil {
 					t.Error("expected result to be non-nil")
+					return
 				}
 				if result.HashAlgorithm != tt.req.HashAlgorithm {
 					t.Errorf("expected hash algorithm %q, got %q", tt.req.HashAlgorithm, result.HashAlgorithm)
