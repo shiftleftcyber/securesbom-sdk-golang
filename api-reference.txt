@@ -73,6 +73,8 @@ func (c *Client) HealthCheck(ctx context.Context) error
 
 func (c *Client) ListKeys(ctx context.Context) (*KeyListResponse, error)
 
+func (c *Client) SignDigest(ctx context.Context, req SignDigestRequest) (*SignDigestResponse, error)
+
 func (c *Client) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponseV2, error)
 
 func (c *Client) SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponseV2, error)
@@ -88,6 +90,7 @@ type ClientInterface interface {
 	GetPublicKey(ctx context.Context, keyID string) (string, error)
 	SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponseV2, error)
 	SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponseV2, error)
+	SignDigest(ctx context.Context, req SignDigestRequest) (*SignDigestResponse, error)
 	VerifySBOM(ctx context.Context, req VerifyCMDRequest) (*VerifyResultCMDResponse, error)
 }
 
@@ -189,6 +192,8 @@ func (r *RetryingClient) HealthCheck(ctx context.Context) error
 
 func (r *RetryingClient) ListKeys(ctx context.Context) (*KeyListResponse, error)
 
+func (r *RetryingClient) SignDigest(ctx context.Context, req SignDigestRequest) (*SignDigestResponse, error)
+
 func (r *RetryingClient) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponseV2, error)
 
 func (r *RetryingClient) SignSBOMWithOptions(ctx context.Context, keyID string, sbom interface{}, opts SignOptions) (*SignResultAPIResponseV2, error)
@@ -212,6 +217,19 @@ func (s *SBOM) String() string
 func (s *SBOM) WriteToFile(filePath string) error
 
 func (s *SBOM) WriteToWriter(writer io.Writer) error
+
+type SignDigestRequest struct {
+	DigestB64     string `json:"digest_b64"`
+	HashAlgorithm string `json:"hash_algorithm"`
+	KeyID         string `json:"key_id"`
+}
+
+type SignDigestResponse struct {
+	HashAlgorithm      string `json:"hash_algorithm"`
+	KeyID              string `json:"key_id"`
+	Signature          string `json:"signature"`
+	SignatureAlgorithm string `json:"signature_algorithm"`
+}
 
 type SignOptions struct {
 	Detached bool
