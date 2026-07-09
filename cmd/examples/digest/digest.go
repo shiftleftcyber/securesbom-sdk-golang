@@ -83,13 +83,6 @@ func main() {
 	defer cancel()
 
 	if !*quiet {
-		fmt.Fprintf(os.Stderr, "Connecting to SecureSBOM API...\n")
-	}
-	if err := client.HealthCheck(ctx); err != nil {
-		log.Fatalf("Error connecting to API: %v", err)
-	}
-
-	if !*quiet {
 		fmt.Fprintf(os.Stderr, "Signing digest with key %s...\n", *keyID)
 	}
 

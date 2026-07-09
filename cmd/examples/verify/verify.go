@@ -94,14 +94,6 @@ func main() {
 		log.Fatalf("Error loading signed SBOM: %v", err)
 	}
 
-	// Verify API connectivity
-	if !*quiet {
-		fmt.Fprintf(os.Stderr, "Connecting to SecureSBOM API...\n")
-	}
-	if err := client.HealthCheck(ctx); err != nil {
-		log.Fatalf("Error connecting to API: %v", err)
-	}
-
 	// Verify the SBOM signature
 	if !*quiet {
 		fmt.Fprintf(os.Stderr, "Verifying SBOM signature with key %s...\n", *keyID)

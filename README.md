@@ -254,6 +254,18 @@ export SECURE_SBOM_API_KEY="your-api-key"
 ./bin/digest -key-id my-key-123 -hash-algorithm sha256 -digest Zm9vYmFy
 ```
 
+### Check API Health
+
+```bash
+export SECURE_SBOM_API_KEY="your-api-key"
+
+# Call the explicit health-check endpoint
+./bin/healthcheck
+
+# Check a custom API endpoint
+./bin/healthcheck -base-url https://custom.api.example.com
+```
+
 ### Manage Keys
 
 ```bash

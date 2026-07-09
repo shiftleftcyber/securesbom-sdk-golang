@@ -37,7 +37,7 @@ LDFLAGS := -X $(shell $(GO) list .)/pkg/securesbom.Version=$(VERSION) \
 build: build-examples ## Build all examples
 
 .PHONY: build-examples
-build-examples: build-sign build-digest build-verify build-keymgmt
+build-examples: build-sign build-digest build-verify build-keymgmt build-healthcheck
 
 .PHONY: build-sign
 build-sign: ## Build sign example
@@ -63,12 +63,19 @@ build-keymgmt: ## Build keymgmt example
 	@mkdir -p $(BIN_DIR)
 	$(GO) build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/keymgmt $(EXAMPLES_DIR)/keymgmt/
 
+.PHONY: build-healthcheck
+build-healthcheck: ## Build healthcheck example
+	@echo "Building healthcheck example..."
+	@mkdir -p $(BIN_DIR)
+	$(GO) build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/healthcheck $(EXAMPLES_DIR)/healthcheck/
+
 .PHONY: install-examples
 install-examples: ## Install examples to $GOPATH/bin
 	$(GO) install -ldflags "$(LDFLAGS)" $(EXAMPLES_DIR)/sign/
 	$(GO) install -ldflags "$(LDFLAGS)" $(EXAMPLES_DIR)/digest/
 	$(GO) install -ldflags "$(LDFLAGS)" $(EXAMPLES_DIR)/verify/
 	$(GO) install -ldflags "$(LDFLAGS)" $(EXAMPLES_DIR)/keymgmt/
+	$(GO) install -ldflags "$(LDFLAGS)" $(EXAMPLES_DIR)/healthcheck/
 
 ## Test targets
 
