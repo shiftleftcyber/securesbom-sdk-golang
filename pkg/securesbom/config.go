@@ -19,6 +19,7 @@ package securesbom
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -177,15 +178,19 @@ func DefaultRetryConfig() RetryConfig {
 }
 
 func WithRetry(ctx context.Context, config RetryConfig, fn func() error) error {
+	return withRetry(ctx, config, fn, time.After)
+}
+
+func withRetry(ctx context.Context, config RetryConfig, fn func() error, after func(time.Duration) <-chan time.Time) error {
 	var lastErr error
+	config = normalizeRetryConfig(config)
 
 	for attempt := 0; attempt < config.MaxAttempts; attempt++ {
 		if err := fn(); err != nil {
 			lastErr = err
 
-			// Check if error is retryable
-			if apiErr, ok := err.(*APIError); ok && !apiErr.Temporary() {
-				return err // Don't retry non-temporary errors
+			if !isRetryableError(err) {
+				return err
 			}
 
 			// Don't wait after the last attempt
@@ -193,17 +198,12 @@ func WithRetry(ctx context.Context, config RetryConfig, fn func() error) error {
 				break
 			}
 
-			// Calculate wait time with exponential backoff
-			waitTime := time.Duration(float64(config.InitialWait) *
-				math.Pow(config.Multiplier, float64(attempt)))
-			if waitTime > config.MaxWait {
-				waitTime = config.MaxWait
-			}
+			waitTime := retryDelay(config, attempt, err)
 
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case <-time.After(waitTime):
+			case <-after(waitTime):
 				// Continue to next attempt
 			}
 		} else {
@@ -211,7 +211,59 @@ func WithRetry(ctx context.Context, config RetryConfig, fn func() error) error {
 		}
 	}
 
-	return fmt.Errorf("operation failed after %d attempts: %w", config.MaxAttempts, lastErr)
+	var apiErr *APIError
+	if errors.As(lastErr, &apiErr) {
+		exhausted := *apiErr
+		exhausted.Kind = ErrorKindRetryExhausted
+		exhausted.RetryExhausted = true
+		exhausted.Attempts = config.MaxAttempts
+		return &exhausted
+	}
+
+	return &RetryExhaustedError{
+		Attempts: config.MaxAttempts,
+		Err:      lastErr,
+	}
+}
+
+func normalizeRetryConfig(config RetryConfig) RetryConfig {
+	defaults := DefaultRetryConfig()
+	if config.MaxAttempts <= 0 {
+		config.MaxAttempts = defaults.MaxAttempts
+	}
+	if config.InitialWait <= 0 {
+		config.InitialWait = defaults.InitialWait
+	}
+	if config.MaxWait <= 0 {
+		config.MaxWait = defaults.MaxWait
+	}
+	if config.Multiplier < 1 {
+		config.Multiplier = defaults.Multiplier
+	}
+	return config
+}
+
+func isRetryableError(err error) bool {
+	var apiErr *APIError
+	if errors.As(err, &apiErr) {
+		return apiErr.Temporary()
+	}
+	return false
+}
+
+func retryDelay(config RetryConfig, attempt int, err error) time.Duration {
+	waitTime := time.Duration(float64(config.InitialWait) *
+		math.Pow(config.Multiplier, float64(attempt)))
+
+	var apiErr *APIError
+	if errors.As(err, &apiErr) && apiErr.RetryAfter > waitTime {
+		waitTime = apiErr.RetryAfter
+	}
+
+	if waitTime > config.MaxWait {
+		return config.MaxWait
+	}
+	return waitTime
 }
 
 func WithRetryingClient(client *Client, retryConfig RetryConfig) *RetryingClient {

@@ -284,7 +284,7 @@ config := securesbom.NewConfigBuilder().
 
 ### Retry Configuration
 
-Add automatic retries with exponential backoff:
+Add automatic retries with bounded exponential backoff:
 
 ```go
 retryConfig := securesbom.RetryConfig{
@@ -296,6 +296,18 @@ retryConfig := securesbom.RetryConfig{
 
 retryingClient := securesbom.WithRetryingClient(baseClient, retryConfig)
 ```
+
+Retries are only attempted for transient request failures, HTTP `429`, and
+server-side `5xx` responses. Client and authorization failures such as `400`,
+`401`, `403`, and `404` are returned without retrying. When a rate-limit
+response includes `Retry-After` or `X-RateLimit-Reset`, the SDK uses that value
+up to `MaxWait`.
+
+Security note: retry and error handling fail closed for authentication and
+authorization failures, bound retry attempts and waits to reduce denial-of-service
+risk, expose operation/status/request ID metadata for repudiation-safe
+diagnostics, and keep API keys, full URLs, raw network errors, and stack traces
+out of default error strings.
 
 ### Environment Variables
 
@@ -345,9 +357,11 @@ The SDK provides structured error types:
 result, err := client.SignSBOM(ctx, keyID, sbom)
 if err != nil {
     if apiErr, ok := err.(*securesbom.APIError); ok {
-        fmt.Printf("API Error %d: %s\n", apiErr.StatusCode, apiErr.Message)
+        fmt.Printf("%s failed with status %d: %s\n", apiErr.Operation, apiErr.StatusCode, apiErr.Message)
+        fmt.Printf("kind=%s retry_exhausted=%t attempts=%d request_id=%s\n",
+            apiErr.Kind, apiErr.RetryExhausted, apiErr.Attempts, apiErr.RequestID)
         if apiErr.Temporary() {
-            // Retry logic
+            // Retryable transient failure
         }
     }
     return err
