@@ -18,6 +18,8 @@ package securesbom
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -256,7 +258,7 @@ func TestWithRetry(t *testing.T) {
 			},
 			expectError:   true,
 			expectedCalls: 2,
-			errorMsg:      "operation failed after 2 attempts",
+			errorMsg:      "retries exhausted after 2 attempts",
 		},
 	}
 
@@ -291,5 +293,101 @@ func TestWithRetry(t *testing.T) {
 				t.Errorf("expected %d calls, got %d", tt.expectedCalls, *callCount)
 			}
 		})
+	}
+}
+
+func TestWithRetry_DoesNotRetryNonAPIError(t *testing.T) {
+	callCount := 0
+
+	err := WithRetry(context.Background(), RetryConfig{
+		MaxAttempts: 3,
+		InitialWait: time.Millisecond,
+		MaxWait:     time.Millisecond,
+		Multiplier:  2,
+	}, func() error {
+		callCount++
+		return errors.New("permanent local failure")
+	})
+
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if callCount != 1 {
+		t.Fatalf("expected 1 call, got %d", callCount)
+	}
+}
+
+func TestWithRetry_RetryExhaustedShape(t *testing.T) {
+	err := WithRetry(context.Background(), RetryConfig{
+		MaxAttempts: 2,
+		InitialWait: time.Millisecond,
+		MaxWait:     time.Millisecond,
+		Multiplier:  2,
+	}, func() error {
+		return &APIError{
+			StatusCode: http.StatusTooManyRequests,
+			Message:    "rate limited",
+			Operation:  "GET /v0/keys",
+			Kind:       ErrorKindRateLimit,
+		}
+	})
+
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected APIError, got %T", err)
+	}
+	if !apiErr.RetryExhausted {
+		t.Fatal("expected RetryExhausted to be true")
+	}
+	if apiErr.Kind != ErrorKindRetryExhausted {
+		t.Fatalf("expected kind %q, got %q", ErrorKindRetryExhausted, apiErr.Kind)
+	}
+	if apiErr.Attempts != 2 {
+		t.Fatalf("expected 2 attempts, got %d", apiErr.Attempts)
+	}
+	if apiErr.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("expected status %d, got %d", http.StatusTooManyRequests, apiErr.StatusCode)
+	}
+	if apiErr.Operation != "GET /v0/keys" {
+		t.Fatalf("expected operation context, got %q", apiErr.Operation)
+	}
+}
+
+func TestWithRetry_UsesBoundedRateLimitDelay(t *testing.T) {
+	var waits []time.Duration
+	after := func(wait time.Duration) <-chan time.Time {
+		waits = append(waits, wait)
+		ch := make(chan time.Time, 1)
+		ch <- time.Now()
+		return ch
+	}
+
+	callCount := 0
+	err := withRetry(context.Background(), RetryConfig{
+		MaxAttempts: 2,
+		InitialWait: 10 * time.Millisecond,
+		MaxWait:     50 * time.Millisecond,
+		Multiplier:  2,
+	}, func() error {
+		callCount++
+		return &APIError{
+			StatusCode: http.StatusTooManyRequests,
+			Message:    "rate limited",
+			Kind:       ErrorKindRateLimit,
+			RetryAfter: 2 * time.Second,
+		}
+	}, after)
+
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if callCount != 2 {
+		t.Fatalf("expected 2 calls, got %d", callCount)
+	}
+	if len(waits) != 1 {
+		t.Fatalf("expected 1 wait, got %d", len(waits))
+	}
+	if waits[0] != 50*time.Millisecond {
+		t.Fatalf("expected capped wait of 50ms, got %s", waits[0])
 	}
 }

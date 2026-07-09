@@ -16,16 +16,39 @@
 
 package securesbom
 
+import "time"
+
+const (
+	ErrorKindRequest         = "request"
+	ErrorKindResponse        = "response"
+	ErrorKindRateLimit       = "rate_limit"
+	ErrorKindAuthorization   = "authorization"
+	ErrorKindRetryExhausted  = "retry_exhausted"
+	ErrorKindInputValidation = "input_validation"
+)
+
 // APIError represents an error response from the API
 type APIError struct {
-	StatusCode int    `json:"status_code"`
-	Message    string `json:"message"`
-	Details    string `json:"details,omitempty"`
-	RequestID  string `json:"request_id,omitempty"`
+	StatusCode     int           `json:"status_code"`
+	Message        string        `json:"message"`
+	Details        string        `json:"details,omitempty"`
+	RequestID      string        `json:"request_id,omitempty"`
+	Operation      string        `json:"operation,omitempty"`
+	Kind           string        `json:"kind,omitempty"`
+	RetryAfter     time.Duration `json:"-"`
+	RetryExhausted bool          `json:"retry_exhausted,omitempty"`
+	Attempts       int           `json:"attempts,omitempty"`
 }
 
 // APIErrorResponse represents error responses from the API
 type APIErrorResponse struct {
 	Error   string `json:"error,omitempty"`
 	Message string `json:"message,omitempty"`
+}
+
+// RetryExhaustedError reports a retryable operation that failed all configured attempts.
+type RetryExhaustedError struct {
+	Operation string
+	Attempts  int
+	Err       error
 }

@@ -351,6 +351,175 @@ func TestClient_doRequest(t *testing.T) {
 	}
 }
 
+func TestClient_doRequest_RateLimitErrorIncludesRetryMetadata(t *testing.T) {
+	response := createMockResponse(http.StatusTooManyRequests, map[string]string{"message": "slow down"})
+	response.Header.Set("Retry-After", "2")
+
+	client := &Client{
+		config: &Config{
+			APIKey:    "test-key",
+			BaseURL:   "https://api.example.com",
+			UserAgent: UserAgent,
+		},
+		httpClient: &MockHTTPClient{
+			DoFunc: func(req *http.Request) (*http.Response, error) {
+				return response, nil
+			},
+		},
+	}
+
+	_, err := client.doRequest(context.Background(), http.MethodGet, "/v0/keys", nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	apiErr, ok := err.(*APIError)
+	if !ok {
+		t.Fatalf("expected APIError, got %T", err)
+	}
+	if apiErr.Kind != ErrorKindRateLimit {
+		t.Fatalf("expected kind %q, got %q", ErrorKindRateLimit, apiErr.Kind)
+	}
+	if apiErr.RetryAfter != 2*time.Second {
+		t.Fatalf("expected retry-after 2s, got %s", apiErr.RetryAfter)
+	}
+	if apiErr.Operation != "GET /v0/keys" {
+		t.Fatalf("expected operation context, got %q", apiErr.Operation)
+	}
+	if strings.Contains(apiErr.Error(), "test-key") || strings.Contains(apiErr.Error(), "api.example.com") {
+		t.Fatalf("error leaked sensitive request details: %q", apiErr.Error())
+	}
+}
+
+func TestRetryingClient_ListKeysDoesNotCallHealthCheck(t *testing.T) {
+	var requestedPaths []string
+
+	mockClient := &MockHTTPClient{
+		DoFunc: func(req *http.Request) (*http.Response, error) {
+			requestedPaths = append(requestedPaths, req.URL.Path)
+			if req.URL.Path == API_ENDPOINT_HEALTHCHECK {
+				t.Fatal("unexpected implicit healthcheck request")
+			}
+			return createMockResponse(http.StatusOK, `[]`), nil
+		},
+	}
+
+	baseClient := &Client{
+		config: &Config{
+			APIKey:    "test-key",
+			BaseURL:   "https://api.example.com",
+			UserAgent: UserAgent,
+		},
+		httpClient: mockClient,
+	}
+
+	client := WithRetryingClient(baseClient, RetryConfig{
+		MaxAttempts: 3,
+		InitialWait: time.Millisecond,
+		MaxWait:     time.Millisecond,
+		Multiplier:  2,
+	})
+
+	if _, err := client.ListKeys(context.Background()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(requestedPaths) != 1 {
+		t.Fatalf("expected 1 request, got %d: %v", len(requestedPaths), requestedPaths)
+	}
+	if requestedPaths[0] != API_VERSION+API_ENDPOINT_KEYS {
+		t.Fatalf("expected keys request, got %q", requestedPaths[0])
+	}
+}
+
+func TestRetryingClient_RetriesConnectionReset(t *testing.T) {
+	callCount := 0
+	mockClient := &MockHTTPClient{
+		DoFunc: func(req *http.Request) (*http.Response, error) {
+			callCount++
+			if callCount == 1 {
+				return nil, fmt.Errorf("connection reset by peer")
+			}
+			return createMockResponse(http.StatusOK, `[]`), nil
+		},
+	}
+
+	baseClient := &Client{
+		config: &Config{
+			APIKey:    "test-key",
+			BaseURL:   "https://api.example.com",
+			UserAgent: UserAgent,
+		},
+		httpClient: mockClient,
+	}
+
+	client := WithRetryingClient(baseClient, RetryConfig{
+		MaxAttempts: 2,
+		InitialWait: time.Millisecond,
+		MaxWait:     time.Millisecond,
+		Multiplier:  2,
+	})
+
+	if _, err := client.ListKeys(context.Background()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if callCount != 2 {
+		t.Fatalf("expected 2 calls, got %d", callCount)
+	}
+}
+
+func TestRetryingClient_RetryExhaustionPreservesAPIErrorFields(t *testing.T) {
+	callCount := 0
+	mockClient := &MockHTTPClient{
+		DoFunc: func(req *http.Request) (*http.Response, error) {
+			callCount++
+			return createMockResponse(http.StatusServiceUnavailable, map[string]string{
+				"message":    "service unavailable",
+				"request_id": "req-123",
+			}), nil
+		},
+	}
+
+	baseClient := &Client{
+		config: &Config{
+			APIKey:    "test-key",
+			BaseURL:   "https://api.example.com",
+			UserAgent: UserAgent,
+		},
+		httpClient: mockClient,
+	}
+
+	client := WithRetryingClient(baseClient, RetryConfig{
+		MaxAttempts: 2,
+		InitialWait: time.Millisecond,
+		MaxWait:     time.Millisecond,
+		Multiplier:  2,
+	})
+
+	_, err := client.ListKeys(context.Background())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	apiErr, ok := err.(*APIError)
+	if !ok {
+		t.Fatalf("expected APIError, got %T", err)
+	}
+	if callCount != 2 {
+		t.Fatalf("expected 2 calls, got %d", callCount)
+	}
+	if apiErr.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("expected status %d, got %d", http.StatusServiceUnavailable, apiErr.StatusCode)
+	}
+	if !apiErr.RetryExhausted || apiErr.Attempts != 2 {
+		t.Fatalf("expected retry exhaustion after 2 attempts, got exhausted=%t attempts=%d", apiErr.RetryExhausted, apiErr.Attempts)
+	}
+	if apiErr.Operation != "GET "+API_VERSION+API_ENDPOINT_KEYS {
+		t.Fatalf("expected operation context, got %q", apiErr.Operation)
+	}
+	if apiErr.RequestID != "req-123" {
+		t.Fatalf("expected request ID, got %q", apiErr.RequestID)
+	}
+}
+
 func TestClient_HealthCheck(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -1041,7 +1210,7 @@ func TestAPIError_Error(t *testing.T) {
 				Message:    "Bad Request",
 				Details:    "Missing parameter",
 			},
-			expected: "secure-sbom API error 400: Bad Request (Missing parameter)",
+			expected: "secure-sbom API error 400: Bad Request",
 		},
 		{
 			name: "error without details",

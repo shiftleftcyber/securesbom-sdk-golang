@@ -38,10 +38,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -71,15 +74,42 @@ type ClientInterface interface {
 }
 
 func (e *APIError) Error() string {
-	if e.Details != "" {
-		return fmt.Sprintf("secure-sbom API error %d: %s (%s)", e.StatusCode, e.Message, e.Details)
+	prefix := "secure-sbom API error"
+	if e.Operation != "" {
+		prefix = fmt.Sprintf("%s during %s", prefix, e.Operation)
 	}
-	return fmt.Sprintf("secure-sbom API error %d: %s", e.StatusCode, e.Message)
+	if e.StatusCode > 0 {
+		prefix = fmt.Sprintf("%s %d", prefix, e.StatusCode)
+	}
+	if e.RetryExhausted {
+		return fmt.Sprintf("%s: retries exhausted after %d attempts: %s", prefix, e.Attempts, e.Message)
+	}
+	return fmt.Sprintf("%s: %s", prefix, e.Message)
 }
 
 // Temporary returns true if the error is likely temporary and retryable
 func (e *APIError) Temporary() bool {
-	return e.StatusCode >= 500 || e.StatusCode == 429
+	if e == nil {
+		return false
+	}
+	if e.Kind == ErrorKindRequest {
+		return true
+	}
+	return e.StatusCode == http.StatusTooManyRequests || e.StatusCode >= 500
+}
+
+func (e *RetryExhaustedError) Error() string {
+	if e.Operation != "" {
+		return fmt.Sprintf("secure-sbom API error during %s: retries exhausted after %d attempts: %v", e.Operation, e.Attempts, e.Err)
+	}
+	return fmt.Sprintf("secure-sbom API error: retries exhausted after %d attempts: %v", e.Attempts, e.Err)
+}
+
+func (e *RetryExhaustedError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
 }
 
 func NewClient(config *Config) (*Client, error) {
@@ -141,19 +171,28 @@ func (c *Client) buildURL(endpoint string) string {
 
 func (c *Client) doRequest(ctx context.Context, method, endpoint string, body interface{}) (*http.Response, error) {
 	url := c.buildURL(endpoint)
+	operation := requestOperation(method, endpoint)
 
 	var bodyReader io.Reader
 	if body != nil {
 		bodyBytes, err := json.Marshal(body)
 		if err != nil {
-			return nil, fmt.Errorf("failed to marshal request body: %w", err)
+			return nil, &APIError{
+				Message:   "failed to encode request body",
+				Operation: operation,
+				Kind:      ErrorKindInputValidation,
+			}
 		}
 		bodyReader = bytes.NewReader(bodyBytes)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, method, url, bodyReader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, &APIError{
+			Message:   "failed to create request",
+			Operation: operation,
+			Kind:      ErrorKindInputValidation,
+		}
 	}
 
 	// Set authentication and headers
@@ -167,7 +206,7 @@ func (c *Client) doRequest(ctx context.Context, method, endpoint string, body in
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
+		return nil, requestError(operation, err)
 	}
 
 	// Handle HTTP error status codes
@@ -179,6 +218,9 @@ func (c *Client) doRequest(ctx context.Context, method, endpoint string, body in
 		apiErr := &APIError{
 			StatusCode: resp.StatusCode,
 			Message:    http.StatusText(resp.StatusCode),
+			Operation:  operation,
+			Kind:       responseErrorKind(resp.StatusCode),
+			RetryAfter: retryAfterFromHeaders(resp.Header, time.Now()),
 		}
 
 		// Try to parse structured error response
@@ -205,6 +247,82 @@ func (c *Client) doRequest(ctx context.Context, method, endpoint string, body in
 	}
 
 	return resp, nil
+}
+
+func requestOperation(method, endpoint string) string {
+	return fmt.Sprintf("%s /%s", method, strings.TrimPrefix(endpoint, "/"))
+}
+
+func requestError(operation string, err error) error {
+	apiErr := &APIError{
+		Message:   "request failed",
+		Operation: operation,
+		Kind:      ErrorKindRequest,
+	}
+
+	if errors.Is(err, context.Canceled) {
+		apiErr.Message = "request canceled"
+		apiErr.Kind = ErrorKindInputValidation
+	} else if errors.Is(err, context.DeadlineExceeded) || isRetryableNetworkError(err) {
+		apiErr.Message = "temporary request failure"
+	} else {
+		apiErr.Kind = ErrorKindResponse
+	}
+
+	return apiErr
+}
+
+func isRetryableNetworkError(err error) bool {
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+
+	errText := strings.ToLower(err.Error())
+	return strings.Contains(errText, "connection reset") ||
+		strings.Contains(errText, "connection refused") ||
+		strings.Contains(errText, "broken pipe") ||
+		strings.Contains(errText, "unexpected eof")
+}
+
+func responseErrorKind(statusCode int) string {
+	switch statusCode {
+	case http.StatusTooManyRequests:
+		return ErrorKindRateLimit
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return ErrorKindAuthorization
+	default:
+		return ErrorKindResponse
+	}
+}
+
+func retryAfterFromHeaders(headers http.Header, now time.Time) time.Duration {
+	value := strings.TrimSpace(headers.Get("Retry-After"))
+	if value != "" {
+		if seconds, err := time.ParseDuration(value + "s"); err == nil && seconds > 0 {
+			return seconds
+		}
+		if retryAt, err := http.ParseTime(value); err == nil && retryAt.After(now) {
+			return retryAt.Sub(now)
+		}
+	}
+
+	reset := strings.TrimSpace(headers.Get("X-RateLimit-Reset"))
+	if reset == "" {
+		return 0
+	}
+	if unixSeconds, err := strconv.ParseInt(reset, 10, 64); err == nil {
+		resetAt := time.Unix(unixSeconds, 0)
+		if resetAt.After(now) {
+			return resetAt.Sub(now)
+		}
+		return 0
+	}
+	resetAt, err := time.Parse(time.RFC3339, reset)
+	if err == nil && resetAt.After(now) {
+		return resetAt.Sub(now)
+	}
+	return 0
 }
 
 func (c *Client) HealthCheck(ctx context.Context) error {
