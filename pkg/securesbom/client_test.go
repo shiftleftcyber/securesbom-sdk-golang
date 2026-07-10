@@ -1197,6 +1197,176 @@ func TestClient_VerifySBOM(t *testing.T) {
 	}
 }
 
+func TestClient_VerifySBOM_UnwrapsCycloneDXSignResponse(t *testing.T) {
+	signedCycloneDX := json.RawMessage(`{
+		"bomFormat": "CycloneDX",
+		"specVersion": "1.6",
+		"version": 1,
+		"signature": {
+			"algorithm": "ES256",
+			"value": "MEYCIQCwgtRwXkckmpSJ4nhzouwZ6VL_TWabLjxbpDkBLO0UVgIhAO9ZtGL7Mj4LYDW3TUJnY0ghEr4tnUMmRPyUgrcvn7T9",
+			"keyId": "key-123"
+		}
+	}`)
+	signResponse := SignResultAPIResponseV2{
+		SBOMType:   "cyclonedx",
+		Algorithm:  "ES256",
+		Detached:   false,
+		SignedSBOM: signedCycloneDX,
+	}
+
+	mockClient := &MockHTTPClient{
+		DoFunc: func(req *http.Request) (*http.Response, error) {
+			bodyBytes, err := io.ReadAll(req.Body)
+			if err != nil {
+				t.Fatalf("failed to read request body: %v", err)
+			}
+
+			var requestBody struct {
+				KeyID string          `json:"key_id"`
+				SBOM  json.RawMessage `json:"sbom"`
+			}
+			if err := json.Unmarshal(bodyBytes, &requestBody); err != nil {
+				t.Fatalf("failed to decode request body: %v", err)
+			}
+			if requestBody.KeyID != "key-123" {
+				t.Fatalf("expected key ID %q, got %q", "key-123", requestBody.KeyID)
+			}
+			if !jsonEqual(requestBody.SBOM, signedCycloneDX) {
+				t.Fatalf("expected verify request to contain signed_sbom only, got %s", string(requestBody.SBOM))
+			}
+
+			return createMockResponse(http.StatusOK, VerifyResultAPIResponseV2{
+				Code:    "VALID",
+				Message: "signature is valid",
+			}), nil
+		},
+	}
+
+	client := &Client{
+		config: &Config{
+			APIKey:    "test-key",
+			BaseURL:   "https://api.example.com",
+			UserAgent: UserAgent,
+		},
+		httpClient: mockClient,
+	}
+
+	result, err := client.VerifySBOM(context.Background(), VerifyCMDRequest{
+		KeyID: "key-123",
+		SBOM:  signResponse,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result == nil || !result.Valid {
+		t.Fatalf("expected valid verification result, got %#v", result)
+	}
+}
+
+func TestClient_VerifySBOM_UnwrapsCycloneDXSignResponseMap(t *testing.T) {
+	signedCycloneDX := map[string]interface{}{
+		"bomFormat":   "CycloneDX",
+		"specVersion": "1.6",
+		"version":     float64(1),
+		"signature": map[string]interface{}{
+			"algorithm": "ES256",
+			"value":     "MEYCIQCwgtRwXkckmpSJ4nhzouwZ6VL_TWabLjxbpDkBLO0UVgIhAO9ZtGL7Mj4LYDW3TUJnY0ghEr4tnUMmRPyUgrcvn7T9",
+			"keyId":     "key-123",
+		},
+	}
+	signResponse := map[string]interface{}{
+		"sbom_type":   "cyclonedx",
+		"algorithm":   "ES256",
+		"detached":    false,
+		"signed_sbom": signedCycloneDX,
+	}
+
+	mockClient := &MockHTTPClient{
+		DoFunc: func(req *http.Request) (*http.Response, error) {
+			bodyBytes, err := io.ReadAll(req.Body)
+			if err != nil {
+				t.Fatalf("failed to read request body: %v", err)
+			}
+
+			var requestBody struct {
+				SBOM map[string]interface{} `json:"sbom"`
+			}
+			if err := json.Unmarshal(bodyBytes, &requestBody); err != nil {
+				t.Fatalf("failed to decode request body: %v", err)
+			}
+			if _, ok := requestBody.SBOM["signed_sbom"]; ok {
+				t.Fatal("verify request should not forward the sign response envelope")
+			}
+			if requestBody.SBOM["bomFormat"] != "CycloneDX" {
+				t.Fatalf("expected CycloneDX SBOM, got %#v", requestBody.SBOM)
+			}
+
+			return createMockResponse(http.StatusOK, VerifyResultAPIResponseV2{
+				Code:    "VALID",
+				Message: "signature is valid",
+			}), nil
+		},
+	}
+
+	client := &Client{
+		config: &Config{
+			APIKey:    "test-key",
+			BaseURL:   "https://api.example.com",
+			UserAgent: UserAgent,
+		},
+		httpClient: mockClient,
+	}
+
+	if _, err := client.VerifySBOM(context.Background(), VerifyCMDRequest{KeyID: "key-123", SBOM: signResponse}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestClient_VerifySBOM_RejectsDetachedSignResponseWithoutSBOM(t *testing.T) {
+	client := &Client{
+		config: &Config{
+			APIKey:    "test-key",
+			BaseURL:   "https://api.example.com",
+			UserAgent: UserAgent,
+		},
+		httpClient: &MockHTTPClient{
+			DoFunc: func(req *http.Request) (*http.Response, error) {
+				t.Fatal("verify request should fail before making an HTTP request")
+				return nil, nil
+			},
+		},
+	}
+
+	_, err := client.VerifySBOM(context.Background(), VerifyCMDRequest{
+		KeyID: "key-123",
+		SBOM: SignResultAPIResponseV2{
+			SBOMType:     "spdx",
+			Algorithm:    "ES256",
+			Detached:     true,
+			SignatureB64: "MEUCIQDoWIGe",
+		},
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "original SBOM and signature_b64") {
+		t.Fatalf("expected actionable detached-signature error, got %q", err.Error())
+	}
+}
+
+func jsonEqual(left, right []byte) bool {
+	var leftJSON interface{}
+	var rightJSON interface{}
+	if err := json.Unmarshal(left, &leftJSON); err != nil {
+		return false
+	}
+	if err := json.Unmarshal(right, &rightJSON); err != nil {
+		return false
+	}
+	return fmt.Sprintf("%#v", leftJSON) == fmt.Sprintf("%#v", rightJSON)
+}
+
 func TestAPIError_Error(t *testing.T) {
 	tests := []struct {
 		name     string

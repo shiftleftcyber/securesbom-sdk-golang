@@ -229,11 +229,9 @@ export SECURE_SBOM_SIGNING_KEY_ID="my-key-123"
 # Sign from file
 ./bin/sign -key-id ${SECURE_SBOM_SIGNING_KEY_ID} -sbom samples/cdx/sbomex-cdx.json -output output.json
 
-# extract the signed SBOM from the response payload
-cat output.json | jq .signed_sbom > sbomex-cdx.signed.json
-
-# Verify the SBOM which contains the embedded signature
-./bin/verify -key-id ${SECURE_SBOM_SIGNING_KEY_ID} -sbom sbomex-cdx.signed.json
+# Verify the CycloneDX signing response directly.
+# The SDK unwraps the signed_sbom object before calling verification.
+./bin/verify -key-id ${SECURE_SBOM_SIGNING_KEY_ID} -sbom output.json
 ```
 
 ### Sign and Verify a SPDX SBOM
@@ -242,7 +240,7 @@ cat output.json | jq .signed_sbom > sbomex-cdx.signed.json
 # Verify and show result
 ./bin/sign -key-id ${SECURE_SBOM_SIGNING_KEY_ID} -sbom samples/spdx/sbom-tool/sbomex-spdx.json -output output.json
 
-# Verify using the SBOM and Signautre from the response object
+# Verify using the original SBOM and signature from the detached response object
 ./bin/verify -key-id ${SECURE_SBOM_SIGNING_KEY_ID} -sbom samples/spdx/sbom-tool/sbomex-spdx.json -signature $(cat output.json | jq -r .signature_b64)
 ```
 
