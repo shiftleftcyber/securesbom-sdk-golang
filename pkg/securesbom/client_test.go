@@ -768,7 +768,7 @@ func TestClient_GenerateKey(t *testing.T) {
 }
 
 func TestClient_GetPublicKey(t *testing.T) {
-	pemKey := "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...\n-----END PUBLIC KEY-----"
+	pemKey := "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEgyF2yWrfKgdMGM+l6IqU04xY6nRi\n3ltJCmZK1+q+K68XONbeI6q9RD2N4+7MtQjded0CEBSqfnrigXNAKbenmQ==\n-----END PUBLIC KEY-----\n"
 
 	tests := []struct {
 		name         string
@@ -779,11 +779,37 @@ func TestClient_GetPublicKey(t *testing.T) {
 		expectedPEM  string
 	}{
 		{
-			name:         "successful get public key",
+			name:  "successful get public key from PEM field",
+			keyID: "key-123",
+			mockResponse: createMockResponse(200, PublicKeyAPIResponse{
+				ID:        "key-123",
+				Algorithm: "ES256",
+				PublicKey: pemKey,
+			}),
+			expectError: false,
+			expectedPEM: pemKey,
+		},
+		{
+			name:  "successful get public key from JWK fallback",
+			keyID: "key-123",
+			mockResponse: createMockResponse(200, PublicKeyAPIResponse{
+				ID:        "key-123",
+				Algorithm: "ES256",
+				PublicKeyJWK: &PublicKeyJWK{
+					KTY: "EC",
+					CRV: "P-256",
+					X:   "gyF2yWrfKgdMGM-l6IqU04xY6nRi3ltJCmZK1-q-K68",
+					Y:   "FzjW3iOqvUQ9jePuzLUI3XndAhAUqn564oFzQCm3p5k",
+				},
+			}),
+			expectError: false,
+			expectedPEM: pemKey,
+		},
+		{
+			name:         "missing public key material",
 			keyID:        "key-123",
-			mockResponse: createMockResponse(200, pemKey),
-			expectError:  false,
-			expectedPEM:  pemKey,
+			mockResponse: createMockResponse(200, PublicKeyAPIResponse{ID: "key-123"}),
+			expectError:  true,
 		},
 		{
 			name:        "empty key ID",
@@ -803,7 +829,7 @@ func TestClient_GetPublicKey(t *testing.T) {
 			mockClient := &MockHTTPClient{
 				DoFunc: func(req *http.Request) (*http.Response, error) {
 					if tt.keyID != "" {
-						expectedURL := fmt.Sprintf("https://api.example.com/api/v1/keys/public?key_id=%s", tt.keyID)
+						expectedURL := fmt.Sprintf("https://api.example.com/api/v1/keys?key_id=%s", tt.keyID)
 						if req.URL.String() != expectedURL {
 							t.Errorf("expected URL %q, got %q", expectedURL, req.URL.String())
 						}

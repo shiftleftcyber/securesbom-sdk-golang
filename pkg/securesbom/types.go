@@ -73,6 +73,24 @@ type GenerateKeyAPIReponse struct {
 	Purpose         string    `json:"purpose,omitempty"`
 }
 
+type PublicKeyAPIResponse struct {
+	ID              string        `json:"id"`
+	CustomerID      string        `json:"customer_id,omitempty"`
+	CreatedAt       time.Time     `json:"created_at"`
+	Algorithm       string        `json:"algorithm"`
+	Backend         string        `json:"backend,omitempty"`
+	ProtectionLevel string        `json:"protection_level,omitempty"`
+	PublicKey       string        `json:"public_key,omitempty"`
+	PublicKeyJWK    *PublicKeyJWK `json:"public_key_jwk,omitempty"`
+}
+
+type PublicKeyJWK struct {
+	KTY string `json:"kty"`
+	CRV string `json:"crv"`
+	X   string `json:"x"`
+	Y   string `json:"y"`
+}
+
 // Signing
 
 type SignResultAPIResponseV2 struct {
