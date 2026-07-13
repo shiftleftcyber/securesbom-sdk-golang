@@ -37,10 +37,16 @@ package securesbom
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"net"
 	"net/http"
 	"net/url"
@@ -427,7 +433,7 @@ func (c *Client) GetPublicKey(ctx context.Context, keyID string) (string, error)
 		return "", fmt.Errorf("keyID is required")
 	}
 
-	endpoint := API_VERSION + API_ENDPOINT_KEYS + "/public?key_id=" + keyID
+	endpoint := API_VERSION + API_ENDPOINT_KEYS + "?key_id=" + url.QueryEscape(keyID)
 	resp, err := c.doRequest(ctx, "GET", endpoint, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to get public key: %w", err)
@@ -441,13 +447,75 @@ func (c *Client) GetPublicKey(ctx context.Context, keyID string) (string, error)
 		return "", fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
 	}
 
-	// Read the PEM content as plain text
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read response body: %w", err)
+	var keyResp PublicKeyAPIResponse
+	if err := json.NewDecoder(resp.Body).Decode(&keyResp); err != nil {
+		return "", fmt.Errorf("failed to decode public key response: %w", err)
 	}
 
-	return string(body), nil
+	if keyResp.PublicKey != "" {
+		return keyResp.PublicKey, nil
+	}
+
+	if keyResp.PublicKeyJWK != nil {
+		pemKey, err := publicJWKToPEM(*keyResp.PublicKeyJWK)
+		if err != nil {
+			return "", fmt.Errorf("failed to convert public_key_jwk to PEM: %w", err)
+		}
+		return pemKey, nil
+	}
+
+	return "", fmt.Errorf("public key response did not include public_key or public_key_jwk")
+}
+
+func publicJWKToPEM(jwk PublicKeyJWK) (string, error) {
+	if jwk.KTY != "EC" {
+		return "", fmt.Errorf("unsupported public key type %q", jwk.KTY)
+	}
+
+	var curve elliptic.Curve
+	switch jwk.CRV {
+	case "P-256":
+		curve = elliptic.P256()
+	default:
+		return "", fmt.Errorf("unsupported EC curve %q", jwk.CRV)
+	}
+
+	x, err := decodeBase64URLUInt(jwk.X)
+	if err != nil {
+		return "", fmt.Errorf("invalid JWK x coordinate: %w", err)
+	}
+	y, err := decodeBase64URLUInt(jwk.Y)
+	if err != nil {
+		return "", fmt.Errorf("invalid JWK y coordinate: %w", err)
+	}
+	if !curve.IsOnCurve(x, y) {
+		return "", fmt.Errorf("JWK coordinates are not on curve %s", jwk.CRV)
+	}
+
+	der, err := x509.MarshalPKIXPublicKey(&ecdsa.PublicKey{
+		Curve: curve,
+		X:     x,
+		Y:     y,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal public key: %w", err)
+	}
+
+	return string(pem.EncodeToMemory(&pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: der,
+	})), nil
+}
+
+func decodeBase64URLUInt(value string) (*big.Int, error) {
+	decoded, err := base64.RawURLEncoding.DecodeString(value)
+	if err != nil {
+		return nil, err
+	}
+	if len(decoded) == 0 {
+		return nil, fmt.Errorf("empty value")
+	}
+	return new(big.Int).SetBytes(decoded), nil
 }
 
 func (c *Client) SignSBOM(ctx context.Context, keyID string, sbom interface{}) (*SignResultAPIResponseV2, error) {
