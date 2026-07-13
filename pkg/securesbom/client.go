@@ -550,7 +550,12 @@ func (c *Client) VerifySBOM(ctx context.Context, req VerifyCMDRequest) (*VerifyR
 	}
 
 	if req.SignatureB64 != "" {
-		reqBody.SignatureB64 = req.SignatureB64
+		normalizedSBOM, signatureB64, err := normalizeVerifyDetachedSignature(sbom, req.SignatureB64)
+		if err != nil {
+			return nil, err
+		}
+		reqBody.SBOM = normalizedSBOM
+		reqBody.SignatureB64 = signatureB64
 	}
 
 	resp, err := c.doRequest(ctx, http.MethodPost, endpoint, reqBody)

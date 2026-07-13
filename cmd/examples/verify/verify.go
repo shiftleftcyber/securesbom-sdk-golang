@@ -49,7 +49,7 @@ func main() {
 	var (
 		keyID     = flag.String("key-id", "", "Key ID used to sign the SBOM (required)")
 		sbomPath  = flag.String("sbom", "", "Path to signed SBOM file (use '-' or omit for stdin)")
-		signature = flag.String("signature", "", "signature to verify (used for SPDX)")
+		signature = flag.String("signature", "", "Signature value, detached signing response JSON, or path to a signature payload file (used for SPDX)")
 		apiKey    = flag.String("api-key", "", "API key (or set SECURE_SBOM_API_KEY)")
 		baseURL   = flag.String("base-url", "", "API base URL (or set SECURE_SBOM_BASE_URL)")
 		output    = flag.String("output", "text", "Output format: text, json")
@@ -104,8 +104,12 @@ func main() {
 		SBOM:  sbom.Data(),
 	}
 
-	if signature != nil {
-		cliVerifyReq.SignatureB64 = *signature
+	if *signature != "" {
+		signatureValue, err := loadSignatureInput(*signature)
+		if err != nil {
+			log.Fatalf("Error loading signature: %v", err)
+		}
+		cliVerifyReq.SignatureB64 = signatureValue
 	}
 
 	var result *securesbom.VerifyResultCMDResponse
@@ -169,6 +173,30 @@ func loadSignedSBOM(path string) (*securesbom.SBOM, error) {
 
 	// Read from file
 	return securesbom.LoadSBOMFromFile(path)
+}
+
+func loadSignatureInput(value string) (string, error) {
+	if value == "" {
+		return "", nil
+	}
+
+	fileInfo, err := os.Stat(value)
+	if err == nil {
+		if fileInfo.IsDir() {
+			return "", fmt.Errorf("signature path %q is a directory", value)
+		}
+		signatureBytes, err := os.ReadFile(value)
+		if err != nil {
+			return "", fmt.Errorf("failed to read signature file %s: %w", value, err)
+		}
+		return string(signatureBytes), nil
+	}
+
+	if !os.IsNotExist(err) {
+		return "", fmt.Errorf("failed to inspect signature path %s: %w", value, err)
+	}
+
+	return value, nil
 }
 
 // outputVerificationResult outputs the verification result in the specified format
@@ -250,7 +278,7 @@ REQUIRED:
 
 OPTIONS:
   -sbom string      Path to signed SBOM file (default: stdin)
-  -signature string Signature to verify (required for SPDX SBOMs)
+  -signature string Signature value, detached signing response JSON, or path to a signature payload file (required for SPDX SBOMs)
   -output string    Output format: text, json (default: text)
   -api-key string   API key (or set SECURE_SBOM_API_KEY)
   -base-url string  API base URL (or set SECURE_SBOM_BASE_URL)
@@ -269,6 +297,15 @@ EXAMPLES:
 
   # Verify SPDX SBOM with separate signature
   %s -key-id my-key-123 -sbom sbom.spdx.json -signature "base64signature..."
+
+  # Verify SPDX SBOM with detached signing response JSON
+  %s -key-id my-key-123 -sbom sbom.spdx.json -signature '{"algorithm":"ES256","detached":true,"sbom_type":"spdx","signature_b64":"base64signature..."}'
+
+  # Verify SPDX SBOM with detached signing response file
+  %s -key-id my-key-123 -sbom sbom.spdx.json -signature signed.spdx.payload.json
+
+  # Verify CycloneDX SBOM with detached signing response file
+  %s -key-id my-key-123 -sbom sbom.cdx.json -signature signed.cdx.detached.json
 
   # Verify from stdin with text output
   cat signed-sbom.json | %s -key-id my-key-123
@@ -300,5 +337,5 @@ SBOM FORMATS:
 API KEY:
   You can obtain an API key from: https://shiftleftcyber.io/contactus
 
-`, os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0])
+`, os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0])
 }
