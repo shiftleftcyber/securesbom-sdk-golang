@@ -39,6 +39,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/shiftleftcyber/securesbom-sdk-golang/v2/pkg/securesbom"
@@ -176,8 +177,12 @@ func loadSignedSBOM(path string) (*securesbom.SBOM, error) {
 }
 
 func loadSignatureInput(value string) (string, error) {
+	value = strings.TrimSpace(value)
 	if value == "" {
 		return "", nil
+	}
+	if looksLikeInlineJSON(value) {
+		return value, nil
 	}
 
 	fileInfo, err := os.Stat(value)
@@ -197,6 +202,12 @@ func loadSignatureInput(value string) (string, error) {
 	}
 
 	return value, nil
+}
+
+func looksLikeInlineJSON(value string) bool {
+	return (strings.HasPrefix(value, "{") && strings.HasSuffix(value, "}")) ||
+		(strings.HasPrefix(value, "[") && strings.HasSuffix(value, "]")) ||
+		(strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\""))
 }
 
 // outputVerificationResult outputs the verification result in the specified format

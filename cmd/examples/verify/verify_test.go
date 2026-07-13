@@ -50,6 +50,11 @@ func TestLoadSignatureInput(t *testing.T) {
 			expected: signaturePayload,
 		},
 		{
+			name:     "json string signature payload",
+			input:    `"MEQCID8yI8pYVaduL"`,
+			expected: `"MEQCID8yI8pYVaduL"`,
+		},
+		{
 			name:     "signature payload file",
 			input:    signatureFile,
 			expected: signaturePayload,
