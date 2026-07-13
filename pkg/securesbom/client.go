@@ -37,6 +37,7 @@ package securesbom
 import (
 	"bytes"
 	"context"
+	"crypto/ecdh"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/x509"
@@ -473,9 +474,13 @@ func publicJWKToPEM(jwk PublicKeyJWK) (string, error) {
 	}
 
 	var curve elliptic.Curve
+	var ecdhCurve ecdh.Curve
+	var coordinateSize int
 	switch jwk.CRV {
 	case "P-256":
 		curve = elliptic.P256()
+		ecdhCurve = ecdh.P256()
+		coordinateSize = 32
 	default:
 		return "", fmt.Errorf("unsupported EC curve %q", jwk.CRV)
 	}
@@ -488,8 +493,12 @@ func publicJWKToPEM(jwk PublicKeyJWK) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("invalid JWK y coordinate: %w", err)
 	}
-	if !curve.IsOnCurve(x, y) {
-		return "", fmt.Errorf("JWK coordinates are not on curve %s", jwk.CRV)
+	encodedPoint, err := encodeUncompressedECPoint(x, y, coordinateSize)
+	if err != nil {
+		return "", err
+	}
+	if _, err := ecdhCurve.NewPublicKey(encodedPoint); err != nil {
+		return "", fmt.Errorf("JWK coordinates are not a valid %s public key: %w", jwk.CRV, err)
 	}
 
 	der, err := x509.MarshalPKIXPublicKey(&ecdsa.PublicKey{
@@ -505,6 +514,20 @@ func publicJWKToPEM(jwk PublicKeyJWK) (string, error) {
 		Type:  "PUBLIC KEY",
 		Bytes: der,
 	})), nil
+}
+
+func encodeUncompressedECPoint(x, y *big.Int, coordinateSize int) ([]byte, error) {
+	xBytes := x.Bytes()
+	yBytes := y.Bytes()
+	if len(xBytes) > coordinateSize || len(yBytes) > coordinateSize {
+		return nil, fmt.Errorf("JWK coordinates exceed expected length")
+	}
+
+	encoded := make([]byte, 1+coordinateSize*2)
+	encoded[0] = 4
+	copy(encoded[1+coordinateSize-len(xBytes):1+coordinateSize], xBytes)
+	copy(encoded[1+coordinateSize*2-len(yBytes):], yBytes)
+	return encoded, nil
 }
 
 func decodeBase64URLUInt(value string) (*big.Int, error) {

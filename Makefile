@@ -129,7 +129,7 @@ fmt-check: ## Check if code is formatted
 
 .PHONY: lint
 lint:
-	@DOCKER run --rm -v $(shell pwd):/app -w /app golangci/golangci-lint:v2.8.0-alpine golangci-lint run ./...
+	@DOCKER run --rm -v $(shell pwd):/app -w /app golangci/golangci-lint:v2.12.2-alpine golangci-lint run ./...
 
 .PHONY: vet
 vet: ## Run go vet
