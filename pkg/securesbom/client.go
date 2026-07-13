@@ -537,15 +537,25 @@ func (c *Client) VerifySBOM(ctx context.Context, req VerifyCMDRequest) (*VerifyR
 		return nil, fmt.Errorf("sbom is required for verification")
 	}
 
+	sbom, err := normalizeVerifySBOM(req.SBOM)
+	if err != nil {
+		return nil, err
+	}
+
 	endpoint := fmt.Sprintf(API_VERSION_V2 + API_ENDPOINT_SBOM + "/verify")
 
 	reqBody := VerifyAPIRequestV2{
 		KeyID: req.KeyID,
-		SBOM:  req.SBOM,
+		SBOM:  sbom,
 	}
 
 	if req.SignatureB64 != "" {
-		reqBody.SignatureB64 = req.SignatureB64
+		normalizedSBOM, signatureB64, err := normalizeVerifyDetachedSignature(sbom, req.SignatureB64)
+		if err != nil {
+			return nil, err
+		}
+		reqBody.SBOM = normalizedSBOM
+		reqBody.SignatureB64 = signatureB64
 	}
 
 	resp, err := c.doRequest(ctx, http.MethodPost, endpoint, reqBody)

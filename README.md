@@ -229,11 +229,14 @@ export SECURE_SBOM_SIGNING_KEY_ID="my-key-123"
 # Sign from file
 ./bin/sign -key-id ${SECURE_SBOM_SIGNING_KEY_ID} -sbom samples/cdx/sbomex-cdx.json -output output.json
 
-# extract the signed SBOM from the response payload
-cat output.json | jq .signed_sbom > sbomex-cdx.signed.json
+# Verify the CycloneDX signing response directly.
+# The SDK unwraps the signed_sbom object before calling verification.
+./bin/verify -key-id ${SECURE_SBOM_SIGNING_KEY_ID} -sbom output.json
 
-# Verify the SBOM which contains the embedded signature
-./bin/verify -key-id ${SECURE_SBOM_SIGNING_KEY_ID} -sbom sbomex-cdx.signed.json
+# Verify a detached CycloneDX signature response.
+# The SDK attaches the signed_sbom signature object before calling verification.
+./bin/sign -key-id ${SECURE_SBOM_SIGNING_KEY_ID} -sbom samples/cdx/sbomex-cdx.json -detached -output signed.cdx.detached.json
+./bin/verify -key-id ${SECURE_SBOM_SIGNING_KEY_ID} -sbom samples/cdx/sbomex-cdx.json -signature signed.cdx.detached.json
 ```
 
 ### Sign and Verify a SPDX SBOM
@@ -242,8 +245,15 @@ cat output.json | jq .signed_sbom > sbomex-cdx.signed.json
 # Verify and show result
 ./bin/sign -key-id ${SECURE_SBOM_SIGNING_KEY_ID} -sbom samples/spdx/sbom-tool/sbomex-spdx.json -output output.json
 
-# Verify using the SBOM and Signautre from the response object
+# Verify using the original SBOM and signature from the detached response object
 ./bin/verify -key-id ${SECURE_SBOM_SIGNING_KEY_ID} -sbom samples/spdx/sbom-tool/sbomex-spdx.json -signature $(cat output.json | jq -r .signature_b64)
+
+# Or pass the detached signing response JSON directly as the signature argument.
+# The SDK extracts signature_b64 before calling verification.
+./bin/verify -key-id ${SECURE_SBOM_SIGNING_KEY_ID} -sbom samples/spdx/sbom-tool/sbomex-spdx.json -signature "$(cat output.json)"
+
+# Or pass the detached signing response file path.
+./bin/verify -key-id ${SECURE_SBOM_SIGNING_KEY_ID} -sbom samples/spdx/sbom-tool/sbomex-spdx.json -signature output.json
 ```
 
 ### Sign a Digest
@@ -252,6 +262,52 @@ cat output.json | jq .signed_sbom > sbomex-cdx.signed.json
 export SECURE_SBOM_API_KEY="your-api-key"
 
 ./bin/digest -key-id my-key-123 -hash-algorithm sha256 -digest Zm9vYmFy
+```
+
+### Run End-to-End Smoke Tests
+
+The repository includes a smoke-test script that builds the example binaries and
+runs the main SecureSBOM workflows against the sample SBOMs:
+
+- CycloneDX embedded signing and verification
+- CycloneDX detached signing and verification
+- SPDX detached signing and verification
+- SPDX verification with raw `signature_b64`, detached JSON, and detached JSON file
+- Digest signing and offline verification for a sample SBOM
+- Health check and public-key lookup
+
+```bash
+export SECURE_SBOM_API_KEY="your-api-key"
+export SECURE_SBOM_SIGNING_KEY_ID="my-key-123"
+
+scripts/smoke-test-securesbom.sh
+```
+
+The script keeps running when an individual use case fails and prints a pass/fail
+summary at the end. Setup problems such as missing environment variables,
+missing sample files, or missing local tools still stop the run.
+
+Digest verification uses `securesbom-verifier` so it exercises the same offline
+verification logic as that project. By default, the script expects the verifier
+checkout at `../securesbom-verifier` relative to this repository.
+
+Useful options:
+
+```bash
+# Keep generated files for inspection
+KEEP_SMOKE_OUTPUT=1 scripts/smoke-test-securesbom.sh
+
+# Write generated files to a known directory
+OUT_DIR=/tmp/securesbom-smoke KEEP_SMOKE_OUTPUT=1 scripts/smoke-test-securesbom.sh
+
+# Reuse existing binaries instead of rebuilding examples
+SKIP_BUILD=1 scripts/smoke-test-securesbom.sh
+
+# Use a specific securesbom-verifier checkout
+SECURESBOM_VERIFIER_DIR=/path/to/securesbom-verifier scripts/smoke-test-securesbom.sh
+
+# Use a prebuilt sbom-offline-verification binary
+SECURESBOM_VERIFIER_BIN=/path/to/sbom-offline-verification scripts/smoke-test-securesbom.sh
 ```
 
 ### Check API Health
