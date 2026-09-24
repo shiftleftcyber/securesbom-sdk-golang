@@ -16,7 +16,7 @@ jobs:
     
     steps:
         - name: Checkout (with tags)
-          uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+          uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
           with:
             fetch-depth: 0
             fetch-tags: true
@@ -57,13 +57,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           fetch-depth: 0
 
       - id: setup-rearm
         name: setup-rearm
-        uses: relizaio/rearm-actions/setup-cli@dac3e7752598c46746d9b98e0a4bed76535be9b3 # v1.7.0
+        uses: relizaio/rearm-actions/setup-cli@042ecc05633174c505ffe30ced465bf6b62bff3b # v1.8.0
         
       - name: Display rearm version
         shell: bash
@@ -71,7 +71,7 @@ jobs:
         
       - id: init
         name: Initialize ReARM Flow
-        uses: relizaio/rearm-actions/initialize@dac3e7752598c46746d9b98e0a4bed76535be9b3 # v1.7.0
+        uses: relizaio/rearm-actions/initialize@042ecc05633174c505ffe30ced465bf6b62bff3b # v1.8.0
         with: 
           rearm_api_id: ${{ secrets.REARM_COMPONENT_API_ID }}
           rearm_api_key: ${{ secrets.REARM_COMPONENT_API_KEY }}
@@ -82,7 +82,7 @@ jobs:
 
       - name: Generate and sign SBOMs
         id: sbom
-        uses: relizaio/rearm-actions/sbom-sign-scan@dac3e7752598c46746d9b98e0a4bed76535be9b3 # v1.7.0
+        uses: relizaio/rearm-actions/sbom-sign-scan@042ecc05633174c505ffe30ced465bf6b62bff3b # v1.8.0
         with:
           enable_sbom: true
           deliverable_type: FILE
@@ -100,7 +100,7 @@ jobs:
           echo "REARM_BUILD_LIFECYCLE=ASSEMBLED" >> $GITHUB_ENV
 
       - name: Submit metadata to ReARM and Finalize
-        uses: relizaio/rearm-actions/finalize@dac3e7752598c46746d9b98e0a4bed76535be9b3 # v1.7.0
+        uses: relizaio/rearm-actions/finalize@042ecc05633174c505ffe30ced465bf6b62bff3b # v1.8.0
         with:
           rearm_api_id: ${{ secrets.REARM_COMPONENT_API_ID }}
           rearm_api_key: ${{ secrets.REARM_COMPONENT_API_KEY }}
