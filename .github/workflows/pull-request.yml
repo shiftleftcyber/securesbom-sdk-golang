@@ -14,13 +14,13 @@ jobs:
     name: Shared Go CI
     permissions:
       contents: read
-    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/go-ci.yml@43772dc26e5771b120c4bafc869649742aac6d34 # v1
+    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/go-ci.yml@4b4b5d501f71784ab080a47f7ee300d8a9c052e3 # v1
 
   shared-go-lint:
     name: Shared Go lint
     permissions:
       contents: read
-    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/go-lint.yml@43772dc26e5771b120c4bafc869649742aac6d34 # v1
+    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/go-lint.yml@4b4b5d501f71784ab080a47f7ee300d8a9c052e3 # v1
     with:
       golangci-lint-version: v2.12.2
 
@@ -29,7 +29,7 @@ jobs:
     permissions:
       contents: read
       security-events: write
-    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/security-go.yml@43772dc26e5771b120c4bafc869649742aac6d34 # v1
+    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/security-go.yml@4b4b5d501f71784ab080a47f7ee300d8a9c052e3 # v1
     with:
       # The repository dependency graph is currently disabled.
       run-dependency-review: false
@@ -38,13 +38,13 @@ jobs:
     name: Shared workflow policy
     permissions:
       contents: read
-    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/validate-actions.yml@43772dc26e5771b120c4bafc869649742aac6d34 # v1
+    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/validate-actions.yml@4b4b5d501f71784ab080a47f7ee300d8a9c052e3 # v1
 
   shellcheck:
     name: Shared ShellCheck
     permissions:
       contents: read
-    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/shellcheck.yml@43772dc26e5771b120c4bafc869649742aac6d34 # v1
+    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/shellcheck.yml@4b4b5d501f71784ab080a47f7ee300d8a9c052e3 # v1
     with:
       scan-directory: scripts
 

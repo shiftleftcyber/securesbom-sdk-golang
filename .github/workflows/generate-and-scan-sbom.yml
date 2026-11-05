@@ -36,7 +36,7 @@ jobs:
     needs: authorize
     permissions:
       contents: read
-    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/source-sbom-go.yml@43772dc26e5771b120c4bafc869649742aac6d34 # v1
+    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/source-sbom-go.yml@4b4b5d501f71784ab080a47f7ee300d8a9c052e3 # v1
     with:
       artifact-name: securesbom-sdk-golang-source-sbom
       component-type: library
@@ -51,7 +51,7 @@ jobs:
     permissions:
       actions: read
       contents: read
-    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/scan-sbom-osv.yml@43772dc26e5771b120c4bafc869649742aac6d34 # v1
+    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/scan-sbom-osv.yml@4b4b5d501f71784ab080a47f7ee300d8a9c052e3 # v1
     with:
       artifact-name: ${{ needs.source-sbom.outputs.artifact-name }}
       fail-on-vulnerabilities: false
@@ -60,11 +60,12 @@ jobs:
 
   publish-interlynk:
     name: Publish signed source SBOM to Interlynk
+    if: needs.source-sbom.outputs.component-count != '0'
     needs: source-sbom
     permissions:
       actions: read
       contents: read
-    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/publish-sbom-interlynk.yml@43772dc26e5771b120c4bafc869649742aac6d34 # v1
+    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/publish-sbom-interlynk.yml@4b4b5d501f71784ab080a47f7ee300d8a9c052e3 # v1
     with:
       artifact-name: ${{ needs.source-sbom.outputs.artifact-name }}
       environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'Production' || 'Development' }}

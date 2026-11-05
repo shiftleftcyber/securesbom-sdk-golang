@@ -58,7 +58,7 @@ jobs:
     needs: version
     permissions:
       contents: read
-    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/rearm.yml@43772dc26e5771b120c4bafc869649742aac6d34 # v1
+    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/rearm.yml@4b4b5d501f71784ab080a47f7ee300d8a9c052e3 # v1
     with:
       component-id: ${{ vars.REARM_COMPONENT_ID }}
       deliverable-name: securesbom-sdk-golang
