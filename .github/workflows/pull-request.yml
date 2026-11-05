@@ -8,14 +8,50 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
+  shared-go-ci:
+    name: Shared Go CI
+    permissions:
+      contents: read
+    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/go-ci.yml@43772dc26e5771b120c4bafc869649742aac6d34 # v1
+
+  shared-go-lint:
+    name: Shared Go lint
+    permissions:
+      contents: read
+    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/go-lint.yml@43772dc26e5771b120c4bafc869649742aac6d34 # v1
+    with:
+      golangci-lint-version: v2.12.2
+
+  shared-go-security:
+    name: Shared Go security
+    permissions:
+      contents: read
+      security-events: write
+    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/security-go.yml@43772dc26e5771b120c4bafc869649742aac6d34 # v1
+
+  workflow-policy:
+    name: Shared workflow policy
+    permissions:
+      contents: read
+    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/validate-actions.yml@43772dc26e5771b120c4bafc869649742aac6d34 # v1
+
+  shellcheck:
+    name: Shared ShellCheck
+    permissions:
+      contents: read
+    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/shellcheck.yml@43772dc26e5771b120c4bafc869649742aac6d34 # v1
+    with:
+      scan-directory: scripts
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
@@ -34,6 +70,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
@@ -54,6 +92,8 @@ jobs:
         go-version: ['1.25']
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
@@ -81,6 +121,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
@@ -102,6 +144,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
@@ -126,6 +170,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
 
       - name: Lint markdown files
         uses: nosborn/github-action-markdown-cli@508d6cefd8f0cc99eab5d2d4685b1d5f470042c1 # v3.5.0
@@ -137,12 +183,17 @@ jobs:
   summary:
     name: PR Summary
     runs-on: ubuntu-latest
-    needs: [lint, fmt-check, test, build, docs, markdown-lint]
+    needs: [shared-go-ci, shared-go-lint, shared-go-security, workflow-policy, shellcheck, lint, fmt-check, test, build, docs, markdown-lint]
     if: always()
     steps:
       - name: Check all jobs
         run: |
           if [ "${{ needs.lint.result }}" != "success" ] || \
+             [ "${{ needs.shared-go-ci.result }}" != "success" ] || \
+             [ "${{ needs.shared-go-lint.result }}" != "success" ] || \
+             [ "${{ needs.shared-go-security.result }}" != "success" ] || \
+             [ "${{ needs.workflow-policy.result }}" != "success" ] || \
+             [ "${{ needs.shellcheck.result }}" != "success" ] || \
              [ "${{ needs.fmt-check.result }}" != "success" ] || \
              [ "${{ needs.test.result }}" != "success" ] || \
              [ "${{ needs.build.result }}" != "success" ] || \

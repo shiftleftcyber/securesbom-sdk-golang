@@ -130,7 +130,7 @@ require_cmd go
 
 mkdir -p "${OUT_DIR}"
 
-cd "${ROOT_DIR}"
+cd "${ROOT_DIR}" || exit
 
 if [[ "${SKIP_BUILD:-0}" != "1" ]]; then
 	log "Building example binaries"
@@ -278,7 +278,7 @@ digest_verify_cyclonedx() {
 
 	[[ -d "${SECURESBOM_VERIFIER_DIR}" ]] || fail "securesbom-verifier checkout not found: ${SECURESBOM_VERIFIER_DIR}"
 	(
-		cd "${SECURESBOM_VERIFIER_DIR}"
+		cd "${SECURESBOM_VERIFIER_DIR}" || exit
 		run env GOEXPERIMENT=jsonv2 go run ./cmd/sbom-offline-verification \
 			--digest "${cdx_digest}" \
 			--signature "${signature}" \
