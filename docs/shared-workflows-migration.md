@@ -5,6 +5,12 @@ This repository explicitly opts into the centrally managed
 moves `v1` only after its validation suite passes; caller updates are not
 required for compatible fixes within the major version.
 
+Go-product releases use the shared draft-finalization mode. A maintainer creates
+the draft release, then manually dispatches the release workflow from `main`.
+The workflow validates or creates the tag at that exact commit, builds and
+attests the example binaries, attaches the signed SBOM and documentation, and
+publishes only after every required release step succeeds.
+
 Line-level Zizmor exceptions permit symbolic references only on these managed
 workflow calls. Third-party actions remain pinned to immutable commit SHAs.
 
