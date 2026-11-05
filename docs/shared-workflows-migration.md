@@ -39,7 +39,7 @@ Dependency review is temporarily disabled because the repository dependency
 graph is not enabled. Enable the graph, then remove the
 `run-dependency-review: false` caller input to activate this shared check.
 
-The migration also raises the Go baseline from 1.25.7 to 1.26.10. The
-shared govulncheck job found reachable standard-library vulnerabilities in the
-older toolchain; disabling the check would leave those runtime flaws in built
-artifacts.
+The module retains Go 1.25 language compatibility and now selects the Go
+1.26.10 toolchain for builds. The shared govulncheck job found reachable
+standard-library vulnerabilities in Go 1.25.7; disabling the check or building
+release artifacts with that runtime would leave those flaws in place.
