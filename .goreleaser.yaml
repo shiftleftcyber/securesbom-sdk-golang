@@ -1,0 +1,82 @@
+version: 2
+
+project_name: securesbom-examples
+
+before:
+  hooks:
+    - "make docs"
+    - "go doc -all ./pkg/securesbom > docs/pkg-documentation.txt"
+    - >-
+      sh -c 'printf "Version: %s\n" "{{ .Tag }}" > docs/VERSION.txt'
+    - >-
+      tar czf "securesbom-docs-{{ .Tag }}.tar.gz" docs/
+
+builds:
+  - id: sign
+    main: ./cmd/examples/sign
+    binary: sign
+    env: &build_env
+      - CGO_ENABLED=0
+    goos: &build_goos
+      - darwin
+      - linux
+      - windows
+    goarch: &build_goarch
+      - amd64
+      - arm64
+    ignore: &build_ignore
+      - goos: windows
+        goarch: arm64
+    ldflags: &build_ldflags
+      - -s -w
+  - id: digest
+    main: ./cmd/examples/digest
+    binary: digest
+    env: *build_env
+    goos: *build_goos
+    goarch: *build_goarch
+    ignore: *build_ignore
+    ldflags: *build_ldflags
+  - id: verify
+    main: ./cmd/examples/verify
+    binary: verify
+    env: *build_env
+    goos: *build_goos
+    goarch: *build_goarch
+    ignore: *build_ignore
+    ldflags: *build_ldflags
+  - id: keymgmt
+    main: ./cmd/examples/keymgmt
+    binary: keymgmt
+    env: *build_env
+    goos: *build_goos
+    goarch: *build_goarch
+    ignore: *build_ignore
+    ldflags: *build_ldflags
+
+archives:
+  - ids:
+      - sign
+      - digest
+      - verify
+      - keymgmt
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      securesbom-examples-v{{ .Version }}-{{ .Os }}-{{ .Arch }}
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+release:
+  mode: keep-existing
+  extra_files:
+    - glob: securesbom-docs-{{ .Tag }}.tar.gz

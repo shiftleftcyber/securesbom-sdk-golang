@@ -1,4 +1,4 @@
-name: Release
+name: Release Go Product
 
 on:
   push:
@@ -9,403 +9,75 @@ permissions:
   contents: read
 
 jobs:
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
-        with:
-          go-version-file: 'go.mod'
-          cache: false
-
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
-        with:
-          version: v2.12.2
-          args: --timeout=5m
-
-  fmt-check:
-    name: Format Check
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
-        with:
-          go-version-file: 'go.mod'
-          cache: false
-
-      - name: Check formatting
-        run: make fmt-check
-
-  test:
-    name: Test
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        go-version: ['1.25']
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
-        with:
-          go-version: ${{ matrix.go-version }}
-          cache: false
-
-      - name: Install dependencies
-        run: go mod download
-
-      - name: Run tests
-        run: make test
-
-      - name: Upload coverage
-        if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.25'
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
-        with:
-          files: ./coverage/merged.out
-          flags: release
-          name: codecov-release
-
-  build:
-    name: Build Release Binaries
-    runs-on: ubuntu-latest
-    needs: [lint, fmt-check, test]
-    strategy:
-      matrix:
-        include:
-          - goos: linux
-            goarch: amd64
-          - goos: linux
-            goarch: arm64
-          - goos: darwin
-            goarch: amd64
-          - goos: darwin
-            goarch: arm64
-          - goos: windows
-            goarch: amd64
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
-        with:
-          go-version-file: 'go.mod'
-          cache: false
-
-      - name: Get version
-        id: version
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
-          echo "Building version: ${VERSION}"
-
-      - name: Build examples
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          VERSION: ${{ steps.version.outputs.version }}
-          CGO_ENABLED: 0
-        run: |
-          mkdir -p dist
-          
-          # Set binary extension for Windows
-          EXT=""
-          if [ "$GOOS" = "windows" ]; then
-            EXT=".exe"
-          fi
-          
-          # Build flags
-          LDFLAGS="-s -w -X github.com/shiftleftcyber/securesbom-sdk-golang/pkg/securesbom.Version=$VERSION \
-                   -X github.com/shiftleftcyber/securesbom-sdk-golang/pkg/securesbom.Commit=${GITHUB_SHA::7} \
-                   -X github.com/shiftleftcyber/securesbom-sdk-golang/pkg/securesbom.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          
-          # Build each example
-          echo "Building sign..."
-          go build -ldflags "$LDFLAGS" -o "dist/sign${EXT}" ./cmd/examples/sign/
-
-          echo "Building digest..."
-          go build -ldflags "$LDFLAGS" -o "dist/digest${EXT}" ./cmd/examples/digest/
-          
-          echo "Building verify..."
-          go build -ldflags "$LDFLAGS" -o "dist/verify${EXT}" ./cmd/examples/verify/
-          
-          echo "Building keymgmt..."
-          go build -ldflags "$LDFLAGS" -o "dist/keymgmt${EXT}" ./cmd/examples/keymgmt/
-
-      - name: Create release archives
-        env:
-          GOARCH: ${{ matrix.goarch }}
-          GOOS: ${{ matrix.goos }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          cd dist
-          
-          # Create archive name
-          ARCHIVE_NAME="securesbom-examples-${VERSION}-${GOOS}-${GOARCH}"
-          
-          if [ "$GOOS" = "windows" ]; then
-            # Create zip for Windows
-            zip -r "${ARCHIVE_NAME}.zip" ./*
-          else
-            # Create tar.gz for Unix-like systems
-            tar czf "${ARCHIVE_NAME}.tar.gz" ./*
-          fi
-          
-          # Generate checksums
-          if [ "$GOOS" = "windows" ]; then
-            sha256sum "${ARCHIVE_NAME}.zip" > "${ARCHIVE_NAME}.zip.sha256"
-          else
-            sha256sum "${ARCHIVE_NAME}.tar.gz" > "${ARCHIVE_NAME}.tar.gz.sha256"
-          fi
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: release-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: |
-            dist/*.tar.gz
-            dist/*.tar.gz.sha256
-            dist/*.zip
-            dist/*.zip.sha256
-          retention-days: 90
-
-  docs:
-    name: Build Release Documentation
-    runs-on: ubuntu-latest
-    needs: [lint, fmt-check, test]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
-        with:
-          go-version-file: 'go.mod'
-          cache: false
-
-      - name: Get version
-        id: version
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
-
-      - name: Generate documentation
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          make docs
-          
-          # Generate package documentation
-          go doc -all ./pkg/securesbom > docs/pkg-documentation.txt
-          
-          # Add version to documentation
-          echo "Version: ${VERSION}" > docs/VERSION.txt
-
-      - name: Create documentation archive
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          tar czf "securesbom-docs-${VERSION}.tar.gz" docs/
-
-      - name: Upload documentation
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: documentation
-          path: securesbom-docs-*.tar.gz
-          retention-days: 90
-
-  create-release:
-    name: Create GitHub Release
-    runs-on: ubuntu-latest
-    needs: [build, docs]
+  go:
+    name: Shared Go CI
     permissions:
+      contents: read
+    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/go-ci.yml@v1 # zizmor: ignore[unpinned-uses]
+
+  go-lint:
+    name: Shared Go lint
+    permissions:
+      contents: read
+    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/go-lint.yml@v1 # zizmor: ignore[unpinned-uses]
+    with:
+      golangci-lint-version: v2.12.2
+
+  source-sbom:
+    name: Generate release SBOM
+    permissions:
+      contents: read
+    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/source-sbom-go.yml@v1 # zizmor: ignore[unpinned-uses]
+    with:
+      artifact-name: securesbom-sdk-golang-release-sbom
+      component-type: library
+      file-prefix: securesbom-sdk-golang-${{ github.ref_name }}
+      go-version-file: go.mod
+      secure-sbom-signing-key-id: ${{ vars.SECURE_SBOM_SIGNING_KEY_ID }}
+      source-directory: .
+    secrets:
+      secure-sbom-api-key: ${{ secrets.SECURE_SBOM_API_KEY }}
+
+  osv-scan:
+    name: Scan release SBOM
+    needs: source-sbom
+    permissions:
+      actions: read
+      contents: read
+    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/scan-sbom-osv.yml@v1 # zizmor: ignore[unpinned-uses]
+    with:
+      artifact-name: ${{ needs.source-sbom.outputs.artifact-name }}
+      fail-on-vulnerabilities: false
+      report-artifact-name: securesbom-sdk-golang-release-osv-reports
+      sbom-file: ${{ needs.source-sbom.outputs.unsigned-sbom-file }}
+
+  release:
+    name: Publish Go release assets
+    needs: [go, go-lint, source-sbom, osv-scan]
+    permissions:
+      attestations: write
       contents: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          fetch-depth: 0
-          persist-credentials: false
+      id-token: write
+    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/release-go.yml@v1 # zizmor: ignore[unpinned-uses]
+    with:
+      config: .goreleaser.yaml
+      evidence-artifact-name: ${{ needs.source-sbom.outputs.artifact-name }}
+      evidence-file: ${{ needs.source-sbom.outputs.signed-sbom-file }}
+      go-version-file: go.mod
+      working-directory: .
 
-      - name: Get version
-        id: version
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          path: release-artifacts
-
-      - name: Prepare release assets
-        run: |
-          mkdir -p release-files
-          find release-artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.sha256" \) -exec cp {} release-files/ \;
-          ls -lah release-files/
-
-      - name: Generate release notes
-        id: release_notes
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          cat > release-notes.md << EOF
-          # SecureSBOM Go SDK ${VERSION}
-          
-          ## What's Changed
-          
-          This release includes the SecureSBOM Go SDK and example applications.
-          
-          ## Installation
-          
-          ### Go SDK
-          \`\`\`bash
-          go get github.com/shiftleftcyber/securesbom-sdk-golang@${VERSION}
-          \`\`\`
-          
-          ### Example Binaries
-          
-          Download the appropriate binary for your platform from the assets below.
-          
-          **Linux (amd64)**:
-          \`\`\`bash
-          curl -LO https://github.com/shiftleftcyber/securesbom-sdk-golang/releases/download/${VERSION}/securesbom-examples-${VERSION}-linux-amd64.tar.gz
-          tar xzf securesbom-examples-${VERSION}-linux-amd64.tar.gz
-          \`\`\`
-          
-          **macOS (Apple Silicon)**:
-          \`\`\`bash
-          curl -LO https://github.com/shiftleftcyber/securesbom-sdk-golang/releases/download/${VERSION}/securesbom-examples-${VERSION}-darwin-arm64.tar.gz
-          tar xzf securesbom-examples-${VERSION}-darwin-arm64.tar.gz
-          \`\`\`
-          
-          **Windows (amd64)**:
-          Download the zip file and extract it.
-          
-          ## Checksums
-          
-          All release artifacts include SHA256 checksums for verification.
-          
-          ## Documentation
-          
-          - [API Documentation](https://pkg.go.dev/github.com/shiftleftcyber/securesbom-sdk-golang)
-          - [Examples](https://github.com/shiftleftcyber/securesbom-sdk-golang/tree/main/cmd/examples)
-          
-          ## Full Changelog
-          
-          https://github.com/shiftleftcyber/securesbom-sdk-golang/compare/...${VERSION}
-          EOF
-          
-          cat release-notes.md
-
-      - name: Create Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          set -euo pipefail
-          release_args=(
-            "${VERSION}"
-            ./release-files/*
-            --generate-notes
-            --notes-file release-notes.md
-            --title "SecureSBOM Go SDK ${VERSION}"
-          )
-          if [[ "${VERSION}" == *rc* || "${VERSION}" == *beta* || "${VERSION}" == *alpha* ]]; then
-            release_args+=(--prerelease)
-          fi
-          gh release create "${release_args[@]}"
-
-  publish-package:
-    name: Publish Go Package
-    runs-on: ubuntu-latest
-    needs: [create-release]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
-        with:
-          go-version-file: 'go.mod'
-          cache: false
-
-      - name: Get version
-        id: version
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
-
-      - name: Verify module
-        run: |
-          go mod tidy
-          go mod verify
-    
-      - name: Trigger Go module reindex (non-blocking)
-        continue-on-error: true
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          echo "Triggering reindex for github.com/shiftleftcyber/securesbom-sdk-golang@${VERSION}"
-          curl -sSf "https://proxy.golang.org/github.com/shiftleftcyber/securesbom-sdk-golang/@v/${VERSION}.info" \
-            || echo "Proxy may not have indexed this version yet, continuing..."
-
-      - name: Log reindex status
-        run: |
-          echo "Your module will appear shortly on pkg.go.dev after proxy reindexing."
-
-  notify:
-    name: Notify Release
-    runs-on: ubuntu-latest
-    needs: [create-release, publish-package]
-    if: success()
-    steps:
-      - name: Get version
-        id: version
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
-
-      - name: Release summary
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          {
-            echo "## 🎉 Release ${VERSION} Published"
-            echo
-            echo "✅ All checks passed"
-            echo "✅ Binaries built for all platforms"
-            echo "✅ Documentation generated"
-            echo "✅ GitHub Release created"
-            echo "✅ Go package published"
-            echo
-            echo "**Release URL**: https://github.com/shiftleftcyber/securesbom-sdk-golang/releases/tag/${VERSION}"
-          } >> "${GITHUB_STEP_SUMMARY}"
+  publish-interlynk:
+    name: Publish release SBOM to Interlynk
+    if: needs.source-sbom.outputs.component-count != '0'
+    needs: [source-sbom, osv-scan, release]
+    permissions:
+      actions: read
+      contents: read
+    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/publish-sbom-interlynk.yml@v1 # zizmor: ignore[unpinned-uses]
+    with:
+      artifact-name: ${{ needs.source-sbom.outputs.artifact-name }}
+      environment: Production
+      product: securesbom-sdk-golang
+      sbom-file: ${{ needs.source-sbom.outputs.signed-sbom-file }}
+    secrets:
+      interlynk-security-token: ${{ secrets.INTERLYNK_TOKEN }}
