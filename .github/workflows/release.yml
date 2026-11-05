@@ -155,12 +155,12 @@ jobs:
           go build -ldflags "$LDFLAGS" -o "dist/keymgmt${EXT}" ./cmd/examples/keymgmt/
 
       - name: Create release archives
+        env:
+          GOARCH: ${{ matrix.goarch }}
+          GOOS: ${{ matrix.goos }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           cd dist
-          
-          VERSION=${{ steps.version.outputs.version }}
-          GOOS=${{ matrix.goos }}
-          GOARCH=${{ matrix.goarch }}
           
           # Create archive name
           ARCHIVE_NAME="securesbom-examples-${VERSION}-${GOOS}-${GOARCH}"
@@ -215,6 +215,8 @@ jobs:
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
 
       - name: Generate documentation
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           make docs
           
@@ -222,11 +224,13 @@ jobs:
           go doc -all ./pkg/securesbom > docs/pkg-documentation.txt
           
           # Add version to documentation
-          echo "Version: ${{ steps.version.outputs.version }}" > docs/VERSION.txt
+          echo "Version: ${VERSION}" > docs/VERSION.txt
 
       - name: Create documentation archive
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          tar czf "securesbom-docs-${{ steps.version.outputs.version }}.tar.gz" docs/
+          tar czf "securesbom-docs-${VERSION}.tar.gz" docs/
 
       - name: Upload documentation
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -267,9 +271,9 @@ jobs:
 
       - name: Generate release notes
         id: release_notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION=${{ steps.version.outputs.version }}
-          
           cat > release-notes.md << EOF
           # SecureSBOM Go SDK ${VERSION}
           
@@ -320,15 +324,22 @@ jobs:
           cat release-notes.md
 
       - name: Create Release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
-        with:
-          files: release-files/*
-          body_path: release-notes.md
-          draft: false
-          prerelease: ${{ contains(steps.version.outputs.version, 'rc') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'alpha') }}
-          generate_release_notes: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          release_args=(
+            "${VERSION}"
+            ./release-files/*
+            --generate-notes
+            --notes-file release-notes.md
+            --title "SecureSBOM Go SDK ${VERSION}"
+          )
+          if [[ "${VERSION}" == *rc* || "${VERSION}" == *beta* || "${VERSION}" == *alpha* ]]; then
+            release_args+=(--prerelease)
+          fi
+          gh release create "${release_args[@]}"
 
   publish-package:
     name: Publish Go Package
@@ -360,8 +371,9 @@ jobs:
     
       - name: Trigger Go module reindex (non-blocking)
         continue-on-error: true
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION=${{ steps.version.outputs.version }}
           echo "Triggering reindex for github.com/shiftleftcyber/securesbom-sdk-golang@${VERSION}"
           curl -sSf "https://proxy.golang.org/github.com/shiftleftcyber/securesbom-sdk-golang/@v/${VERSION}.info" \
             || echo "Proxy may not have indexed this version yet, continuing..."
@@ -383,9 +395,11 @@ jobs:
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
 
       - name: Release summary
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           {
-            echo "## 🎉 Release ${{ steps.version.outputs.version }} Published"
+            echo "## 🎉 Release ${VERSION} Published"
             echo
             echo "✅ All checks passed"
             echo "✅ Binaries built for all platforms"
@@ -393,5 +407,5 @@ jobs:
             echo "✅ GitHub Release created"
             echo "✅ Go package published"
             echo
-            echo "**Release URL**: https://github.com/shiftleftcyber/securesbom-sdk-golang/releases/tag/${{ steps.version.outputs.version }}"
+            echo "**Release URL**: https://github.com/shiftleftcyber/securesbom-sdk-golang/releases/tag/${VERSION}"
           } >> "${GITHUB_STEP_SUMMARY}"

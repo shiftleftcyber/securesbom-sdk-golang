@@ -6,8 +6,8 @@ intentional. Moving compatibility tags require a separate repository decision.
 
 ## Behavior and trust boundaries
 
-- Pull requests run Go CI, lint, dependency review, CodeQL, workflow policy,
-  and ShellCheck without repository write, signing, or publication authority.
+- Pull requests run Go CI, lint, CodeQL, govulncheck, workflow policy, and
+  ShellCheck without repository write, signing, or publication authority.
 - Main and semantic-version tag runs may sign SBOMs and publish evidence to
   Interlynk and ReARM. Manual runs fail closed unless they use `main` or a
   semantic-version tag.
@@ -34,3 +34,7 @@ Secrets: `SECURE_SBOM_API_KEY`, `INTERLYNK_TOKEN`,
 
 Variables: `SECURE_SBOM_SIGNING_KEY_ID`, `SECURE_SBOM_API_URL`,
 `REARM_API_URL`, and `REARM_COMPONENT_ID`.
+
+Dependency review is temporarily disabled because the repository dependency
+graph is not enabled. Enable the graph, then remove the
+`run-dependency-review: false` caller input to activate this shared check.

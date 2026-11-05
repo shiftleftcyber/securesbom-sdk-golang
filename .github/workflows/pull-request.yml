@@ -30,6 +30,9 @@ jobs:
       contents: read
       security-events: write
     uses: shiftleftcyber/supply-chain-workflows/.github/workflows/security-go.yml@43772dc26e5771b120c4bafc869649742aac6d34 # v1
+    with:
+      # The repository dependency graph is currently disabled.
+      run-dependency-review: false
 
   workflow-policy:
     name: Shared workflow policy
