@@ -1,8 +1,12 @@
 # Shared Workflows Migration Security Note
 
-This repository consumes the reviewed `supply-chain-workflows` v1 contract at
-commit `43772dc26e5771b120c4bafc869649742aac6d34`. The immutable reference is
-intentional. Moving compatibility tags require a separate repository decision.
+This repository explicitly opts into the centrally managed
+`supply-chain-workflows@v1` compatibility channel. The platform repository
+moves `v1` only after its validation suite passes; caller updates are not
+required for compatible fixes within the major version.
+
+Line-level Zizmor exceptions permit symbolic references only on these managed
+workflow calls. Third-party actions remain pinned to immutable commit SHAs.
 
 ## Behavior and trust boundaries
 
@@ -13,6 +17,9 @@ intentional. Moving compatibility tags require a separate repository decision.
   semantic-version tag.
 - OSV scans the unsigned CycloneDX document. The signed envelope is reserved
   for evidence publishers.
+- A valid zero-dependency SBOM produces explicit empty OSV reports. Interlynk
+  publication is skipped because its service rejects documents with no
+  dependency components.
 - Cross-platform tests, example archives, documentation, GitHub Pages, and the
   existing release artifact layout remain repository-owned orchestration.
 
