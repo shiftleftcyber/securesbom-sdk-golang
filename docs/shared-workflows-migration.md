@@ -1,8 +1,12 @@
 # Shared Workflows Migration Security Note
 
-This repository consumes the reviewed `supply-chain-workflows` v1 contract at
-commit `4b4b5d501f71784ab080a47f7ee300d8a9c052e3`. The immutable reference is
-intentional. Moving compatibility tags require a separate repository decision.
+This repository explicitly opts into the centrally managed
+`supply-chain-workflows@v1` compatibility channel. The platform repository
+moves `v1` only after its validation suite passes; caller updates are not
+required for compatible fixes within the major version.
+
+Line-level Zizmor exceptions permit symbolic references only on these managed
+workflow calls. Third-party actions remain pinned to immutable commit SHAs.
 
 ## Behavior and trust boundaries
 

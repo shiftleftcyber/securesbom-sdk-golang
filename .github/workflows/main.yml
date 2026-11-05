@@ -13,13 +13,13 @@ jobs:
     name: Shared Go CI
     permissions:
       contents: read
-    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/go-ci.yml@4b4b5d501f71784ab080a47f7ee300d8a9c052e3 # v1
+    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/go-ci.yml@v1 # zizmor: ignore[unpinned-uses]
 
   shared-go-lint:
     name: Shared Go lint
     permissions:
       contents: read
-    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/go-lint.yml@4b4b5d501f71784ab080a47f7ee300d8a9c052e3 # v1
+    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/go-lint.yml@v1 # zizmor: ignore[unpinned-uses]
     with:
       golangci-lint-version: v2.12.2
 
@@ -28,7 +28,7 @@ jobs:
     permissions:
       contents: read
       security-events: write
-    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/security-go.yml@4b4b5d501f71784ab080a47f7ee300d8a9c052e3 # v1
+    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/security-go.yml@v1 # zizmor: ignore[unpinned-uses]
     with:
       run-dependency-review: false
 
@@ -36,13 +36,13 @@ jobs:
     name: Shared workflow policy
     permissions:
       contents: read
-    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/validate-actions.yml@4b4b5d501f71784ab080a47f7ee300d8a9c052e3 # v1
+    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/validate-actions.yml@v1 # zizmor: ignore[unpinned-uses]
 
   shellcheck:
     name: Shared ShellCheck
     permissions:
       contents: read
-    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/shellcheck.yml@4b4b5d501f71784ab080a47f7ee300d8a9c052e3 # v1
+    uses: shiftleftcyber/supply-chain-workflows/.github/workflows/shellcheck.yml@v1 # zizmor: ignore[unpinned-uses]
     with:
       scan-directory: scripts
 
