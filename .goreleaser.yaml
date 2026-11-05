@@ -77,8 +77,6 @@ checksum:
   algorithm: sha256
 
 release:
-  draft: true
-  use_existing_draft: true
   mode: keep-existing
   extra_files:
     - glob: securesbom-docs-{{ .Tag }}.tar.gz

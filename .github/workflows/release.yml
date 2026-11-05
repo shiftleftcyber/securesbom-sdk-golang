@@ -1,12 +1,9 @@
 name: Release Go Product
 
 on:
-  workflow_dispatch:
-    inputs:
-      release-tag:
-        description: Existing draft release tag (for example, v2.8.1).
-        required: true
-        type: string
+  push:
+    tags:
+      - 'v*.*.*'
 
 permissions:
   contents: read
@@ -34,7 +31,7 @@ jobs:
     with:
       artifact-name: securesbom-sdk-golang-release-sbom
       component-type: library
-      file-prefix: securesbom-sdk-golang-${{ inputs.release-tag }}
+      file-prefix: securesbom-sdk-golang-${{ github.ref_name }}
       go-version-file: go.mod
       secure-sbom-signing-key-id: ${{ vars.SECURE_SBOM_SIGNING_KEY_ID }}
       source-directory: .
@@ -55,7 +52,7 @@ jobs:
       sbom-file: ${{ needs.source-sbom.outputs.unsigned-sbom-file }}
 
   release:
-    name: Finalize draft release
+    name: Publish Go release assets
     needs: [go, go-lint, source-sbom, osv-scan]
     permissions:
       attestations: write
@@ -67,8 +64,6 @@ jobs:
       evidence-artifact-name: ${{ needs.source-sbom.outputs.artifact-name }}
       evidence-file: ${{ needs.source-sbom.outputs.signed-sbom-file }}
       go-version-file: go.mod
-      release-tag: ${{ inputs.release-tag }}
-      use-existing-draft: true
       working-directory: .
 
   publish-interlynk:
